@@ -1,0 +1,16 @@
+{
+  "deidentified": true,
+  "patient_id": "EXAMPLE-001",
+  "patient_label": "Four-region synthetic example",
+  "dataset_id": "example-v1",
+  "atlas_id": "example-four",
+  "synthetic": true,
+  "nodes": [
+    {"id": 10, "name": "Left anterior", "hemisphere": "L", "network": "anterior", "x": -0.5, "y": 0.7, "z": 0.2},
+    {"id": 20, "name": "Left posterior", "hemisphere": "L", "network": "posterior", "x": -0.5, "y": -0.7, "z": 0.2},
+    {"id": 30, "name": "Right anterior", "hemisphere": "R", "network": "anterior", "x": 0.5, "y": 0.7, "z": 0.2},
+    {"id": 40, "name": "Right posterior", "hemisphere": "R", "network": "posterior", "x": 0.5, "y": -0.7, "z": 0.2}
+  ],
+  "matrix": [[0, 0.8, 0.4, 0], [0.8, 0, 0.2, 0.3], [0.4, 0.2, 0, 0.7], [0, 0.3, 0.7, 0]],
+  "actual_resection": [{"region_id": 10, "fraction_removed": 0.4}, {"region_id": 20, "fraction_removed": 0.2}]
+}
