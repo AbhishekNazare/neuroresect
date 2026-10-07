@@ -1,0 +1,4177 @@
+# NeuroResect
+
+## Low-Level Design — Patient-Specific Virtual Resection & Brain-Network Analysis Platform
+
+**Document Type:** Low-Level Design
+**Parent Document:** NeuroResect HLD
+**Primary Stack:** Next.js + React + TypeScript + React Three Fiber + FastAPI + Python + PostgreSQL + Redis + Celery + MinIO
+**Primary Scientific Stack:** NumPy, Pandas, NiBabel, Nilearn, NetworkX/igraph, scikit-learn, XGBoost, SHAP, MLflow
+**Initial Dataset Scope:** De-identified epilepsy structural-connectome/resection datasets
+**Initial Modality:** DWI-derived structural connectivity
+**Future Modalities:** MEG, fMRI, HGM, EEG, clinical features
+
+---
+
+# 1. LLD Objectives
+
+This document defines how the NeuroResect HLD is implemented at the level of:
+
+* backend modules;
+* classes and interfaces;
+* API contracts;
+* database tables;
+* object-storage layouts;
+* asynchronous jobs;
+* scientific algorithms;
+* ML workflows;
+* experiment provenance;
+* frontend modules;
+* 3D rendering components;
+* client-side state;
+* event flows;
+* caching;
+* errors;
+* security;
+* tests;
+* observability;
+* deployment.
+
+The architecture should satisfy three principles:
+
+### Principle 1 — Science must remain independent from the UI
+
+The virtual-resection engine should work from the command line even if the React application does not exist.
+
+### Principle 2 — Every result must be reproducible
+
+Any prediction or metric shown in the frontend must trace back to:
+
+```text
+dataset
++
+patient
++
+atlas
++
+resection
++
+feature pipeline
++
+model
++
+code/version
++
+configuration
+```
+
+### Principle 3 — Clinical-looking UI must never imply clinical validation
+
+Every prediction is presented as:
+
+```text
+Research output
+```
+
+not:
+
+```text
+Clinical recommendation
+```
+
+---
+
+# 2. Repository Structure
+
+The project should be a monorepo.
+
+```text
+neuroresect/
+│
+├── apps/
+│   │
+│   ├── web/
+│   │   ├── app/
+│   │   ├── components/
+│   │   ├── features/
+│   │   ├── lib/
+│   │   ├── hooks/
+│   │   ├── stores/
+│   │   ├── services/
+│   │   ├── types/
+│   │   └── tests/
+│   │
+│   └── api/
+│       ├── neuroresect_api/
+│       │   ├── main.py
+│       │   ├── dependencies.py
+│       │   ├── config.py
+│       │   ├── routers/
+│       │   ├── schemas/
+│       │   ├── services/
+│       │   ├── repositories/
+│       │   └── middleware/
+│       │
+│       └── tests/
+│
+├── packages/
+│   │
+│   ├── neurocore/
+│   │   ├── atlas/
+│   │   ├── imaging/
+│   │   ├── connectome/
+│   │   ├── graph/
+│   │   ├── resection/
+│   │   ├── features/
+│   │   ├── models/
+│   │   ├── uncertainty/
+│   │   ├── explainability/
+│   │   ├── counterfactual/
+│   │   ├── experiments/
+│   │   └── validation/
+│   │
+│   └── shared-types/
+│
+├── workers/
+│   ├── celery_app.py
+│   ├── simulation_tasks.py
+│   ├── experiment_tasks.py
+│   ├── prediction_tasks.py
+│   └── counterfactual_tasks.py
+│
+├── datasets/
+│   ├── raw/
+│   ├── derivatives/
+│   └── metadata/
+│
+├── configs/
+│   ├── atlas/
+│   ├── experiments/
+│   └── models/
+│
+├── infrastructure/
+│   ├── docker/
+│   ├── compose/
+│   ├── migrations/
+│   └── nginx/
+│
+├── scripts/
+│
+├── notebooks/
+│
+├── docs/
+│
+└── tests/
+```
+
+The critical separation is:
+
+```text
+neurocore
+```
+
+must contain no FastAPI, React, PostgreSQL, or HTTP logic.
+
+It is the scientific engine.
+
+---
+
+# 3. Core Domain Model
+
+The central domain objects are:
+
+```text
+Dataset
+Patient
+Modality
+Atlas
+BrainRegion
+Connectome
+Resection
+Scenario
+Simulation
+FeatureVector
+Experiment
+Model
+Prediction
+Outcome
+```
+
+Relationship:
+
+```text
+Dataset
+   │
+   └── Patient
+          │
+          ├── Imaging Study
+          │
+          ├── Connectome
+          │       │
+          │       └── Atlas
+          │
+          ├── Clinical Features
+          │
+          ├── Actual Resection
+          │
+          └── Outcome
+
+Scenario
+   │
+   ├── Patient
+   ├── Connectome
+   └── Resection Definition
+           │
+           ▼
+       Simulation
+           │
+           ├── Graph Delta
+           ├── Features
+           └── Prediction
+```
+
+---
+
+# 4. Domain Types
+
+Use strict Python dataclasses or Pydantic models internally.
+
+## PatientRef
+
+```python
+@dataclass(frozen=True)
+class PatientRef:
+    patient_id: str
+    dataset_id: str
+```
+
+---
+
+## BrainRegion
+
+```python
+@dataclass(frozen=True)
+class BrainRegion:
+    region_id: int
+    atlas_id: str
+    name: str
+    hemisphere: str
+    network: str | None
+    centroid: tuple[float, float, float]
+```
+
+---
+
+## Connectome
+
+```python
+@dataclass
+class Connectome:
+    patient_id: str
+    atlas_id: str
+    adjacency_matrix: np.ndarray
+    region_ids: list[int]
+    metadata: dict[str, Any]
+```
+
+Validation:
+
+```text
+matrix must be square
+matrix size == number of regions
+no NaN values
+weights >= 0
+diagonal defaults to 0
+symmetry check configurable
+```
+
+---
+
+# 5. Resection Domain Object
+
+A resection should never just be:
+
+```text
+list[int]
+```
+
+It needs percentage support.
+
+```python
+@dataclass
+class RegionResection:
+    region_id: int
+    fraction_removed: float
+```
+
+Constraint:
+
+```text
+0.0 <= fraction_removed <= 1.0
+```
+
+Resection:
+
+```python
+@dataclass
+class ResectionDefinition:
+    resection_id: str
+    patient_id: str
+    atlas_id: str
+    regions: list[RegionResection]
+    method: str
+    source: str
+```
+
+`source`:
+
+```text
+actual
+manual
+perturbation
+counterfactual
+```
+
+---
+
+# 6. Scenario Domain Object
+
+Scenario represents one experiment on one patient.
+
+```python
+@dataclass
+class Scenario:
+    scenario_id: str
+    patient_id: str
+    connectome_id: str
+    atlas_id: str
+    resection: ResectionDefinition
+    created_by: str | None
+    parent_scenario_id: str | None
+```
+
+Examples:
+
+```text
+Actual clinical resection
+Manual edited resection
++3mm perturbation
+Hub-preserving counterfactual
+```
+
+---
+
+# 7. Atlas Interface
+
+All atlases implement one contract.
+
+```python
+class AtlasProvider(Protocol):
+
+    @property
+    def atlas_id(self) -> str:
+        ...
+
+    def regions(self) -> list[BrainRegion]:
+        ...
+
+    def get_region(self, region_id: int) -> BrainRegion:
+        ...
+
+    def get_mesh_uri(self, region_id: int) -> str:
+        ...
+
+    def region_count(self) -> int:
+        ...
+```
+
+Implementations:
+
+```text
+DesikanKillianyAtlas
+Schaefer100Atlas
+Schaefer200Atlas
+AALAtlas
+```
+
+Atlas registry:
+
+```python
+class AtlasRegistry:
+
+    def register(self, provider: AtlasProvider):
+        ...
+
+    def get(self, atlas_id: str) -> AtlasProvider:
+        ...
+```
+
+---
+
+# 8. Connectome Loader Interface
+
+```python
+class ConnectomeLoader(Protocol):
+
+    def load(
+        self,
+        patient_id: str,
+        atlas_id: str
+    ) -> Connectome:
+        ...
+```
+
+Implementations:
+
+```text
+CsvConnectomeLoader
+NumpyConnectomeLoader
+Hdf5ConnectomeLoader
+DatasetSpecificConnectomeLoader
+```
+
+This allows the scientific code to remain independent from IDEAS-specific file structures.
+
+---
+
+# 9. Graph Construction
+
+Core class:
+
+```python
+class BrainGraphBuilder:
+
+    def build(
+        self,
+        connectome: Connectome,
+        threshold: float | None = None
+    ) -> BrainGraph:
+        ...
+```
+
+`BrainGraph` wraps NetworkX initially.
+
+```python
+@dataclass
+class BrainGraph:
+    graph: nx.Graph
+    patient_id: str
+    atlas_id: str
+```
+
+Construction:
+
+```text
+for every atlas region
+    add node
+
+for every adjacency[i][j]
+    if weight > threshold
+        add weighted edge
+```
+
+Node attributes:
+
+```text
+region_id
+name
+hemisphere
+network
+```
+
+Edge attributes:
+
+```text
+weight
+normalized_weight
+```
+
+---
+
+# 10. Graph Thresholding
+
+Support:
+
+```text
+absolute threshold
+percentile threshold
+top-k per node
+density-preserving threshold
+none
+```
+
+Interface:
+
+```python
+class GraphThresholdStrategy(Protocol):
+    def apply(self, matrix: np.ndarray) -> np.ndarray:
+        ...
+```
+
+Implementations:
+
+```text
+AbsoluteThreshold
+PercentileThreshold
+TopKThreshold
+DensityThreshold
+```
+
+Thresholding configuration must be captured in experiment provenance.
+
+---
+
+# 11. Graph Metric Engine
+
+```python
+class GraphMetricEngine:
+
+    def calculate_global_metrics(
+        self,
+        graph: BrainGraph
+    ) -> GlobalGraphMetrics:
+        ...
+
+    def calculate_node_metrics(
+        self,
+        graph: BrainGraph
+    ) -> dict[int, NodeMetrics]:
+        ...
+```
+
+---
+
+# 12. Global Metrics
+
+Initial version:
+
+```text
+network_density
+global_efficiency
+average_clustering
+characteristic_path_length
+modularity
+assortativity
+number_of_components
+largest_component_fraction
+```
+
+Model:
+
+```python
+@dataclass
+class GlobalGraphMetrics:
+    density: float
+    efficiency: float
+    clustering: float
+    path_length: float | None
+    modularity: float
+    assortativity: float | None
+```
+
+---
+
+# 13. Node-Level Metrics
+
+```text
+degree
+weighted_degree
+betweenness
+closeness
+eigenvector_centrality
+participation_coefficient
+within_module_degree
+```
+
+Model:
+
+```python
+@dataclass
+class NodeMetrics:
+    region_id: int
+    degree: float
+    weighted_degree: float
+    betweenness: float
+    eigenvector: float
+```
+
+---
+
+# 14. Hub Detection
+
+Hub status should not be hardcoded.
+
+Strategy:
+
+```python
+class HubDetector:
+
+    def detect(
+        self,
+        node_metrics: dict[int, NodeMetrics]
+    ) -> set[int]:
+        ...
+```
+
+Initial criterion:
+
+```text
+node weighted degree > mean + 1 SD
+
+OR
+
+centrality above configurable percentile
+```
+
+Experiment stores the chosen definition.
+
+---
+
+# 15. Virtual Resection Engine
+
+Main interface:
+
+```python
+class ResectionStrategy(Protocol):
+
+    def apply(
+        self,
+        graph: BrainGraph,
+        resection: ResectionDefinition
+    ) -> BrainGraph:
+        ...
+```
+
+Implementations:
+
+```text
+BinaryResectionStrategy
+WeightedResectionStrategy
+EdgeInformedResectionStrategy
+```
+
+---
+
+# 16. Binary Resection Algorithm
+
+For each region:
+
+```text
+fraction_removed > threshold
+    remove node
+```
+
+Pseudo-code:
+
+```python
+for region in resection.regions:
+    if region.fraction_removed >= binary_threshold:
+        G.remove_node(region.region_id)
+```
+
+Default threshold:
+
+```text
+0.5
+```
+
+but configurable.
+
+---
+
+# 17. Weighted Resection Algorithm
+
+For region `r`:
+
+```text
+f = fraction removed
+```
+
+Every incident edge:
+
+```text
+new_weight = old_weight × (1 - f)
+```
+
+If both endpoint regions are partially resected:
+
+```text
+new_weight =
+old_weight
+× (1 - f_source)
+× (1 - f_target)
+```
+
+Example:
+
+```text
+A removed 40%
+B removed 20%
+
+remaining edge =
+W × .60 × .80
+
+= W × .48
+```
+
+This provides smooth degradation instead of binary deletion.
+
+---
+
+# 18. Edge-Informed Resection
+
+Future implementation receives tract-level involvement.
+
+```python
+new_weight = old_weight * (1 - tract_damage_fraction)
+```
+
+Requires fiber/tract intersection information.
+
+This stays behind the same `ResectionStrategy` interface.
+
+---
+
+# 19. Simulation Service
+
+Main scientific orchestration:
+
+```python
+class SimulationService:
+
+    def simulate(
+        self,
+        connectome: Connectome,
+        resection: ResectionDefinition,
+        config: SimulationConfig
+    ) -> SimulationResult:
+        ...
+```
+
+Internal sequence:
+
+```text
+Validate input
+↓
+Build baseline graph
+↓
+Calculate baseline metrics
+↓
+Apply resection
+↓
+Calculate post-resection metrics
+↓
+Calculate deltas
+↓
+Identify affected hubs
+↓
+Calculate connectivity loss
+↓
+Build SimulationResult
+```
+
+---
+
+# 20. Simulation Result
+
+```python
+@dataclass
+class SimulationResult:
+    simulation_id: str
+
+    baseline_global_metrics: GlobalGraphMetrics
+    post_global_metrics: GlobalGraphMetrics
+
+    baseline_node_metrics: dict[int, NodeMetrics]
+    post_node_metrics: dict[int, NodeMetrics]
+
+    delta_global_metrics: dict[str, float]
+    delta_node_metrics: dict[int, dict[str, float]]
+
+    removed_edges: int
+    connectivity_loss_fraction: float
+    impacted_hubs: list[int]
+```
+
+---
+
+# 21. Delta Feature Calculator
+
+```python
+class DeltaFeatureCalculator:
+
+    def calculate(
+        self,
+        baseline: GraphMetrics,
+        post: GraphMetrics
+    ) -> dict[str, float]:
+        ...
+```
+
+Generic rule:
+
+```text
+delta_x = post_x - baseline_x
+```
+
+Relative:
+
+```text
+relative_delta_x =
+(post_x - baseline_x) / baseline_x
+```
+
+Protect against division by zero.
+
+Both raw and relative deltas should be stored.
+
+---
+
+# 22. Feature Pipeline Architecture
+
+```python
+class FeatureExtractor(Protocol):
+
+    @property
+    def name(self) -> str:
+        ...
+
+    def extract(
+        self,
+        context: FeatureContext
+    ) -> dict[str, float]:
+        ...
+```
+
+Extractors:
+
+```text
+ClinicalFeatureExtractor
+BaselineGraphFeatureExtractor
+ResectionFeatureExtractor
+DeltaGraphFeatureExtractor
+HubDamageFeatureExtractor
+RegionalFeatureExtractor
+```
+
+---
+
+# 23. Feature Context
+
+```python
+@dataclass
+class FeatureContext:
+    patient: PatientData
+    connectome: Connectome
+    resection: ResectionDefinition
+    simulation: SimulationResult
+```
+
+Pipeline:
+
+```python
+class FeaturePipeline:
+
+    def __init__(
+        self,
+        extractors: list[FeatureExtractor]
+    ):
+        ...
+
+    def run(
+        self,
+        context: FeatureContext
+    ) -> dict[str, float]:
+        ...
+```
+
+---
+
+# 24. Example Feature Vector
+
+```text
+age
+
+epilepsy_duration
+
+resection_volume
+
+resection_region_count
+
+baseline_global_efficiency
+
+baseline_modularity
+
+post_global_efficiency
+
+post_modularity
+
+delta_global_efficiency
+
+relative_delta_global_efficiency
+
+hub_damage_count
+
+hub_damage_fraction
+
+connectivity_loss_fraction
+```
+
+These become one row in the model matrix.
+
+---
+
+# 25. Feature Versioning
+
+Feature definitions change over time.
+
+Therefore:
+
+```text
+feature_set_id:
+graph-delta-v1
+```
+
+Example:
+
+```text
+clinical-v1
+graph-baseline-v1
+graph-delta-v1
+combined-v2
+```
+
+Prediction provenance must store the feature-set version.
+
+---
+
+# 26. Model Interface
+
+```python
+class OutcomeModel(Protocol):
+
+    @property
+    def model_id(self) -> str:
+        ...
+
+    def fit(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series
+    ) -> None:
+        ...
+
+    def predict_proba(
+        self,
+        X: pd.DataFrame
+    ) -> np.ndarray:
+        ...
+
+    def save(self, path: Path) -> None:
+        ...
+```
+
+Wrappers:
+
+```text
+LogisticRegressionModel
+SVMModel
+RandomForestModel
+XGBoostModel
+```
+
+---
+
+# 27. Model Pipeline
+
+Every model should include preprocessing.
+
+Example:
+
+```python
+Pipeline([
+    ("imputer", SimpleImputer()),
+    ("scaler", StandardScaler()),
+    ("classifier", SVC(probability=True))
+])
+```
+
+This prevents preprocessing leakage.
+
+Never normalize entire datasets before cross-validation.
+
+---
+
+# 28. Grouped Cross-Validation
+
+Core contract:
+
+```python
+class SplitStrategy(Protocol):
+
+    def split(
+        self,
+        X,
+        y,
+        groups
+    ):
+        ...
+```
+
+Default:
+
+```text
+StratifiedGroupKFold
+```
+
+or:
+
+```text
+GroupKFold
+```
+
+depending on outcome balance.
+
+Groups:
+
+```text
+patient_id
+```
+
+---
+
+# 29. Leakage Guard
+
+Before training:
+
+```python
+class LeakageValidator:
+
+    def validate(
+        self,
+        train_ids: set[str],
+        validation_ids: set[str],
+        test_ids: set[str]
+    ) -> ValidationReport:
+        ...
+```
+
+Checks:
+
+```text
+patient overlap
+scan overlap
+derived-record overlap
+postoperative features accidentally included
+duplicate rows
+target-derived features
+```
+
+Any critical issue:
+
+```text
+experiment status = FAILED_VALIDATION
+```
+
+Training does not begin.
+
+---
+
+# 30. Experiment Configuration
+
+YAML:
+
+```yaml
+experiment:
+  name: graph-delta-xgb-v1
+
+dataset:
+  id: ideas-v1
+
+atlas:
+  id: schaefer100
+
+graph:
+  threshold:
+    type: percentile
+    value: 75
+
+resection:
+  strategy: weighted
+
+features:
+  sets:
+    - clinical-v1
+    - graph-baseline-v1
+    - graph-delta-v1
+
+model:
+  type: xgboost
+
+validation:
+  strategy: stratified_group_kfold
+  folds: 5
+  group: patient_id
+
+seed: 42
+```
+
+---
+
+# 31. Experiment Runner
+
+```python
+class ExperimentRunner:
+
+    def run(
+        self,
+        config: ExperimentConfig
+    ) -> ExperimentResult:
+        ...
+```
+
+Execution:
+
+```text
+Load cohort
+↓
+Validate records
+↓
+Build patient features
+↓
+Construct X / y / groups
+↓
+Generate grouped folds
+↓
+Train model each fold
+↓
+Predict validation fold
+↓
+Aggregate metrics
+↓
+Calibrate
+↓
+Estimate uncertainty
+↓
+Generate explanation
+↓
+Persist artifacts
+```
+
+---
+
+# 32. Experiment Metrics
+
+For binary seizure outcome:
+
+```text
+ROC-AUC
+PR-AUC
+balanced accuracy
+F1
+sensitivity
+specificity
+Brier score
+log loss
+```
+
+Never use accuracy alone.
+
+Store:
+
+```text
+mean
+std
+per-fold values
+confidence interval
+```
+
+---
+
+# 33. Calibration
+
+Model predictions shown as percentages should be calibrated.
+
+Possible:
+
+```text
+Platt scaling
+Isotonic regression
+```
+
+Interface:
+
+```python
+class ProbabilityCalibrator:
+    def fit(...)
+    def transform(...)
+```
+
+Calibration metrics:
+
+```text
+Brier score
+expected calibration error
+```
+
+---
+
+# 34. Bootstrap Uncertainty
+
+Prediction uncertainty service:
+
+```python
+class BootstrapUncertaintyEstimator:
+
+    def estimate(
+        self,
+        model,
+        X,
+        n_iterations: int = 500
+    ) -> PredictionInterval:
+        ...
+```
+
+Output:
+
+```python
+@dataclass
+class PredictionInterval:
+    estimate: float
+    lower: float
+    upper: float
+    confidence_level: float
+```
+
+UI example:
+
+```text
+0.74
+95% interval: 0.66–0.81
+```
+
+---
+
+# 35. Prediction Stability
+
+Uncertainty and stability differ.
+
+`PredictionStabilityService` perturbs:
+
+```text
+resection percentage
+graph threshold
+atlas
+model seed
+```
+
+and measures output variation.
+
+```python
+stability =
+1 - normalized_prediction_variance
+```
+
+Categorization:
+
+```text
+High
+Moderate
+Low
+```
+
+The raw numeric measure should always be available.
+
+---
+
+# 36. Sensitivity Engine
+
+Interface:
+
+```python
+class SensitivityAnalyzer:
+
+    def analyze(
+        self,
+        scenario: Scenario,
+        perturbation_config: PerturbationConfig
+    ) -> SensitivityResult:
+        ...
+```
+
+Perturbations:
+
+```text
+resection fraction ±5%
+resection fraction ±10%
+add adjacent region
+remove low-coverage region
+```
+
+---
+
+# 37. Perturbation Strategy Interface
+
+```python
+class ResectionPerturbation(Protocol):
+
+    def generate(
+        self,
+        base: ResectionDefinition
+    ) -> list[ResectionDefinition]:
+        ...
+```
+
+Implementations:
+
+```text
+FractionPerturbation
+NeighborExpansionPerturbation
+NeighborReductionPerturbation
+HubPreservationPerturbation
+```
+
+---
+
+# 38. Sensitivity Score
+
+For region `r`:
+
+```text
+Sensitivity(r) =
+|prediction modified - baseline prediction|
+```
+
+Aggregate:
+
+```text
+mean absolute prediction change
+```
+
+This becomes the 3D heatmap value.
+
+---
+
+# 39. Counterfactual Search
+
+The first version should avoid exotic reinforcement learning.
+
+Use constrained search.
+
+```python
+class CounterfactualSearchService:
+
+    def search(
+        self,
+        scenario: Scenario,
+        constraints: SearchConstraints
+    ) -> list[CounterfactualCandidate]:
+        ...
+```
+
+---
+
+# 40. Counterfactual Candidate
+
+```python
+@dataclass
+class CounterfactualCandidate:
+    resection: ResectionDefinition
+
+    target_coverage: float
+    connectivity_loss: float
+    hub_damage: float
+    predicted_outcome: float
+
+    objective_score: float
+```
+
+---
+
+# 41. Counterfactual Objective
+
+Example:
+
+```text
+score =
+w1 × target_coverage
++
+w2 × predicted_outcome
+-
+w3 × connectivity_loss
+-
+w4 × hub_damage
+```
+
+Constraints:
+
+```text
+target coverage >= minimum
+
+number of modified regions <= N
+
+protected regions cannot exceed max removal
+```
+
+Again, this is research exploration, not surgical optimization.
+
+---
+
+# 42. Search Algorithm V1
+
+Use beam search.
+
+```text
+Initial resection
+      ↓
+Generate neighboring candidates
+      ↓
+Evaluate candidates
+      ↓
+Keep best K
+      ↓
+Repeat depth D
+```
+
+Config:
+
+```text
+beam_width = 20
+
+max_depth = 5
+
+max_candidates = 500
+```
+
+This is understandable and debuggable.
+
+---
+
+# 43. Explainability Service
+
+```python
+class ExplainabilityService:
+
+    def explain_prediction(
+        self,
+        model,
+        X_patient
+    ) -> PredictionExplanation:
+        ...
+```
+
+Initial:
+
+```text
+SHAP
+```
+
+Output:
+
+```python
+@dataclass
+class FeatureContribution:
+    feature: str
+    value: float
+    contribution: float
+```
+
+---
+
+# 44. Region-Level Explanation
+
+Map feature contributions back to brain regions where possible.
+
+Example:
+
+```text
+Left temporal connectivity loss
+-0.08 probability contribution
+```
+
+This can highlight relevant regions in the 3D viewer.
+
+---
+
+# 45. Multimodal Interface
+
+Future modalities implement:
+
+```python
+class ModalityProcessor(Protocol):
+
+    @property
+    def modality(self) -> str:
+        ...
+
+    def available(
+        self,
+        patient_id: str
+    ) -> bool:
+        ...
+
+    def extract_features(
+        self,
+        patient_id: str
+    ) -> dict[str, float]:
+        ...
+```
+
+Implementations:
+
+```text
+DWIProcessor
+MEGProcessor
+FMRIProcessor
+HGMProcessor
+```
+
+---
+
+# 46. Modality Availability
+
+Patient endpoint returns:
+
+```json
+{
+  "dwi": true,
+  "meg": false,
+  "fmri": true,
+  "hgm": false
+}
+```
+
+Model compatibility service:
+
+```python
+class ModelCompatibilityService:
+
+    def compatible_models(
+        self,
+        modalities: set[str]
+    ) -> list[ModelMetadata]:
+        ...
+```
+
+---
+
+# 47. Database Schema
+
+Use PostgreSQL.
+
+Core tables:
+
+```text
+datasets
+patients
+patient_modalities
+atlases
+connectomes
+resections
+resection_regions
+scenarios
+simulations
+graph_metrics
+experiments
+experiment_runs
+models
+predictions
+prediction_explanations
+outcomes
+jobs
+```
+
+---
+
+# 48. datasets
+
+```sql
+CREATE TABLE datasets (
+    id UUID PRIMARY KEY,
+    slug VARCHAR UNIQUE NOT NULL,
+    name VARCHAR NOT NULL,
+    version VARCHAR NOT NULL,
+    source VARCHAR,
+    created_at TIMESTAMP NOT NULL
+);
+```
+
+---
+
+# 49. patients
+
+```sql
+CREATE TABLE patients (
+    id UUID PRIMARY KEY,
+    dataset_id UUID NOT NULL REFERENCES datasets(id),
+    external_subject_id VARCHAR NOT NULL,
+    age FLOAT,
+    sex VARCHAR,
+    metadata JSONB,
+    created_at TIMESTAMP NOT NULL,
+
+    UNIQUE(dataset_id, external_subject_id)
+);
+```
+
+Do not store identifying information.
+
+---
+
+# 50. atlases
+
+```sql
+CREATE TABLE atlases (
+    id UUID PRIMARY KEY,
+    slug VARCHAR UNIQUE NOT NULL,
+    name VARCHAR NOT NULL,
+    version VARCHAR,
+    region_count INTEGER NOT NULL,
+    metadata JSONB
+);
+```
+
+---
+
+# 51. connectomes
+
+```sql
+CREATE TABLE connectomes (
+    id UUID PRIMARY KEY,
+    patient_id UUID NOT NULL REFERENCES patients(id),
+    atlas_id UUID NOT NULL REFERENCES atlases(id),
+
+    object_uri VARCHAR NOT NULL,
+
+    threshold_method VARCHAR,
+    processing_version VARCHAR,
+
+    metadata JSONB,
+    created_at TIMESTAMP NOT NULL
+);
+```
+
+Actual matrix lives in object storage, not relational DB.
+
+---
+
+# 52. resections
+
+```sql
+CREATE TABLE resections (
+    id UUID PRIMARY KEY,
+    patient_id UUID NOT NULL REFERENCES patients(id),
+    atlas_id UUID NOT NULL REFERENCES atlases(id),
+
+    source VARCHAR NOT NULL,
+    method VARCHAR NOT NULL,
+
+    label VARCHAR,
+    metadata JSONB,
+
+    created_at TIMESTAMP NOT NULL
+);
+```
+
+---
+
+# 53. resection_regions
+
+```sql
+CREATE TABLE resection_regions (
+    resection_id UUID NOT NULL REFERENCES resections(id),
+    region_id INTEGER NOT NULL,
+    fraction_removed FLOAT NOT NULL,
+
+    PRIMARY KEY(resection_id, region_id),
+
+    CHECK (
+        fraction_removed >= 0
+        AND
+        fraction_removed <= 1
+    )
+);
+```
+
+---
+
+# 54. scenarios
+
+```sql
+CREATE TABLE scenarios (
+    id UUID PRIMARY KEY,
+
+    patient_id UUID NOT NULL REFERENCES patients(id),
+    connectome_id UUID NOT NULL REFERENCES connectomes(id),
+    resection_id UUID NOT NULL REFERENCES resections(id),
+
+    parent_scenario_id UUID NULL REFERENCES scenarios(id),
+
+    label VARCHAR,
+
+    created_by UUID NULL,
+    created_at TIMESTAMP NOT NULL
+);
+```
+
+---
+
+# 55. simulations
+
+```sql
+CREATE TABLE simulations (
+    id UUID PRIMARY KEY,
+
+    scenario_id UUID NOT NULL REFERENCES scenarios(id),
+
+    strategy VARCHAR NOT NULL,
+    engine_version VARCHAR NOT NULL,
+
+    status VARCHAR NOT NULL,
+
+    metrics JSONB,
+
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+
+    error_message TEXT
+);
+```
+
+---
+
+# 56. models
+
+```sql
+CREATE TABLE models (
+    id UUID PRIMARY KEY,
+
+    model_name VARCHAR NOT NULL,
+    model_version VARCHAR NOT NULL,
+
+    feature_set VARCHAR NOT NULL,
+    atlas_id UUID,
+
+    compatible_modalities JSONB,
+
+    artifact_uri VARCHAR NOT NULL,
+
+    metrics JSONB,
+    metadata JSONB,
+
+    created_at TIMESTAMP NOT NULL
+);
+```
+
+---
+
+# 57. predictions
+
+```sql
+CREATE TABLE predictions (
+    id UUID PRIMARY KEY,
+
+    scenario_id UUID NOT NULL REFERENCES scenarios(id),
+    model_id UUID NOT NULL REFERENCES models(id),
+
+    probability FLOAT,
+
+    lower_bound FLOAT,
+    upper_bound FLOAT,
+
+    stability_score FLOAT,
+
+    metadata JSONB,
+
+    created_at TIMESTAMP NOT NULL
+);
+```
+
+---
+
+# 58. outcomes
+
+```sql
+CREATE TABLE outcomes (
+    id UUID PRIMARY KEY,
+
+    patient_id UUID NOT NULL REFERENCES patients(id),
+
+    outcome_type VARCHAR NOT NULL,
+    value VARCHAR,
+    numeric_value FLOAT,
+
+    followup_months INTEGER,
+
+    metadata JSONB
+);
+```
+
+---
+
+# 59. Object Storage Layout
+
+MinIO/S3:
+
+```text
+neuroresect/
+│
+├── datasets/
+│   └── ideas-v1/
+│
+├── connectomes/
+│   └── {patient_id}/
+│       └── {atlas_id}/
+│           └── connectivity.npy
+│
+├── meshes/
+│   └── {atlas_id}/
+│       ├── region_001.glb
+│       └── ...
+│
+├── experiments/
+│   └── {experiment_id}/
+│       ├── config.yaml
+│       ├── metrics.json
+│       ├── predictions.csv
+│       ├── provenance.json
+│       └── plots/
+│
+└── models/
+    └── {model_id}/
+        └── model.joblib
+```
+
+---
+
+# 60. REST API Structure
+
+Prefix:
+
+```text
+/api/v1
+```
+
+Routers:
+
+```text
+/datasets
+/patients
+/atlases
+/connectomes
+/resections
+/scenarios
+/simulations
+/predictions
+/experiments
+/models
+/jobs
+```
+
+---
+
+# 61. GET Patient
+
+```text
+GET /api/v1/patients/{patient_id}
+```
+
+Response:
+
+```json
+{
+  "id": "P021",
+  "dataset": "ideas-v1",
+  "age": 32,
+  "modalities": {
+    "dwi": true,
+    "meg": false,
+    "fmri": false,
+    "hgm": false
+  },
+  "availableAtlases": [
+    "schaefer100",
+    "desikan"
+  ]
+}
+```
+
+---
+
+# 62. GET Connectome
+
+```text
+GET /api/v1/patients/{patient_id}/connectome
+    ?atlas=schaefer100
+```
+
+Do not send an enormous raw matrix unnecessarily.
+
+For visualization, return optimized graph format:
+
+```json
+{
+  "nodes": [
+    {
+      "id": 1,
+      "name": "Left Temporal",
+      "x": -21.2,
+      "y": 5.1,
+      "z": 17.0
+    }
+  ],
+  "edges": [
+    {
+      "source": 1,
+      "target": 19,
+      "weight": 0.82
+    }
+  ]
+}
+```
+
+---
+
+# 63. Create Manual Resection
+
+```text
+POST /api/v1/resections
+```
+
+Request:
+
+```json
+{
+  "patientId": "P021",
+  "atlasId": "schaefer100",
+  "source": "manual",
+  "method": "weighted",
+  "regions": [
+    {
+      "regionId": 31,
+      "fractionRemoved": 0.8
+    },
+    {
+      "regionId": 32,
+      "fractionRemoved": 0.35
+    }
+  ]
+}
+```
+
+---
+
+# 64. Create Scenario
+
+```text
+POST /api/v1/scenarios
+```
+
+Request:
+
+```json
+{
+  "patientId": "P021",
+  "connectomeId": "C123",
+  "resectionId": "R123",
+  "label": "Temporal Reduced"
+}
+```
+
+---
+
+# 65. Run Simulation
+
+```text
+POST /api/v1/scenarios/{scenario_id}/simulate
+```
+
+Response:
+
+```json
+{
+  "jobId": "JOB123",
+  "status": "QUEUED"
+}
+```
+
+Long-running work is asynchronous.
+
+---
+
+# 66. Job Status
+
+```text
+GET /api/v1/jobs/{job_id}
+```
+
+Response:
+
+```json
+{
+  "status": "RUNNING",
+  "progress": 65,
+  "stage": "CALCULATING_GRAPH_METRICS"
+}
+```
+
+---
+
+# 67. Simulation Result
+
+```text
+GET /api/v1/scenarios/{scenario_id}/simulation
+```
+
+Response:
+
+```json
+{
+  "baseline": {
+    "globalEfficiency": 0.64,
+    "modularity": 0.47
+  },
+
+  "postResection": {
+    "globalEfficiency": 0.52,
+    "modularity": 0.51
+  },
+
+  "delta": {
+    "globalEfficiency": -0.12,
+    "globalEfficiencyPercent": -18.75
+  },
+
+  "connectivityLoss": 0.21,
+
+  "impactedHubs": [17, 22, 31]
+}
+```
+
+---
+
+# 68. Predict Scenario
+
+```text
+POST /api/v1/scenarios/{scenario_id}/predict
+```
+
+Response initially:
+
+```json
+{
+  "jobId": "JOB456"
+}
+```
+
+Final:
+
+```json
+{
+  "probability": 0.74,
+
+  "interval": {
+    "lower": 0.66,
+    "upper": 0.81
+  },
+
+  "stability": 0.86,
+
+  "model": {
+    "name": "xgb-graph-delta",
+    "version": "1.2"
+  }
+}
+```
+
+---
+
+# 69. Generate Counterfactuals
+
+```text
+POST /api/v1/scenarios/{scenario_id}/counterfactuals
+```
+
+Request:
+
+```json
+{
+  "maxCandidates": 50,
+  "beamWidth": 10,
+
+  "constraints": {
+    "minimumTargetCoverage": 0.8,
+    "maxAdditionalRegions": 2
+  },
+
+  "weights": {
+    "prediction": 0.4,
+    "targetCoverage": 0.3,
+    "networkDamage": 0.2,
+    "hubDamage": 0.1
+  }
+}
+```
+
+---
+
+# 70. Background Job Types
+
+Celery queues:
+
+```text
+simulation
+prediction
+experiment
+counterfactual
+preprocessing
+```
+
+Workers can scale independently.
+
+Example:
+
+```text
+simulation-worker
+
+experiment-worker
+
+counterfactual-worker
+```
+
+---
+
+# 71. Job State Machine
+
+```text
+QUEUED
+   ↓
+RUNNING
+   ↓
+SUCCEEDED
+
+or
+
+FAILED
+```
+
+Additional:
+
+```text
+CANCEL_REQUESTED
+CANCELLED
+```
+
+Each job persists:
+
+```text
+job_id
+job_type
+status
+progress
+stage
+error
+created_at
+started_at
+completed_at
+```
+
+---
+
+# 72. Idempotency
+
+Simulation calls must support an idempotency key.
+
+If:
+
+```text
+same scenario
++
+same engine config
+```
+
+already exists, return cached result instead of running again.
+
+Simulation hash:
+
+```text
+SHA256(
+  patient
+  + connectome_version
+  + resection_definition
+  + simulation_config
+  + engine_version
+)
+```
+
+---
+
+# 73. Cache Strategy
+
+Redis keys:
+
+```text
+patient:{id}
+
+atlas:{id}
+
+connectome:{patient}:{atlas}
+
+simulation:{scenario}:{version}
+
+prediction:{scenario}:{model}
+```
+
+TTL:
+
+```text
+metadata: 1 hour
+
+atlas metadata: 24 hours
+
+immutable simulation:
+no expiration required
+```
+
+---
+
+# 74. Frontend Architecture
+
+Use feature-based organization.
+
+```text
+features/
+│
+├── patient/
+├── brain-viewer/
+├── connectome/
+├── resection/
+├── simulation/
+├── predictions/
+├── counterfactual/
+├── experiments/
+└── provenance/
+```
+
+Avoid one giant `components/` directory.
+
+---
+
+# 75. Application Routes
+
+```text
+/
+
+/patients
+
+/patients/[patientId]
+
+/patients/[patientId]/brain
+
+/patients/[patientId]/scenarios/[scenarioId]
+
+/experiments
+
+/experiments/[experimentId]
+
+/models
+```
+
+---
+
+# 76. Main Patient Workspace
+
+Route:
+
+```text
+/patients/P021/brain
+```
+
+Layout:
+
+```text
+┌───────────┬───────────────────────────┬──────────────┐
+│ Sidebar   │                           │ Inspector    │
+│           │      Brain Canvas         │              │
+│ Patient   │                           │ Metrics      │
+│ Atlas     │                           │ Prediction   │
+│ Layers    │                           │ Region       │
+│           │                           │ Details      │
+└───────────┴───────────────────────────┴──────────────┘
+```
+
+---
+
+# 77. Frontend State
+
+Use Zustand for interactive visualization state.
+
+```typescript
+interface BrainViewerState {
+  selectedRegionId: number | null;
+
+  hoveredRegionId: number | null;
+
+  atlasId: string;
+
+  mode:
+    | "anatomical"
+    | "connectome"
+    | "resection"
+    | "sensitivity";
+
+  edgeThreshold: number;
+
+  showLeftHemisphere: boolean;
+
+  showRightHemisphere: boolean;
+
+  selectedScenarioId: string | null;
+}
+```
+
+Server data remains in TanStack Query.
+
+Do not duplicate API state in Zustand.
+
+---
+
+# 78. Brain Scene Component Tree
+
+```text
+<BrainScene>
+
+    <SceneLighting />
+
+    <CameraController />
+
+    <BrainMeshLayer />
+
+    <ConnectomeLayer />
+
+    <ResectionLayer />
+
+    <SensitivityLayer />
+
+    <SelectionEffects />
+
+    <BrainLabels />
+
+</BrainScene>
+```
+
+---
+
+# 79. BrainMeshLayer
+
+Responsibilities:
+
+```text
+load GLB atlas meshes
+
+render regions
+
+handle hover
+
+handle selection
+
+apply region material
+
+control transparency
+```
+
+Each region mesh:
+
+```typescript
+<BrainRegionMesh
+    region={region}
+    selected={...}
+    hovered={...}
+    resectionFraction={...}
+/>
+```
+
+---
+
+# 80. Mesh Optimization
+
+Do not make one React component for thousands of vertices.
+
+Meshes should be:
+
+```text
+pre-generated
+compressed
+Draco encoded where appropriate
+cached
+```
+
+Atlas metadata maps:
+
+```text
+mesh node name → region ID
+```
+
+---
+
+# 81. Region Material States
+
+Possible visual states:
+
+```text
+normal
+hovered
+selected
+resected
+sensitivity
+disabled
+```
+
+Priority:
+
+```text
+selected
+>
+resected
+>
+hovered
+>
+sensitivity
+>
+normal
+```
+
+---
+
+# 82. ConnectomeLayer
+
+Input:
+
+```typescript
+interface Edge {
+    source: number;
+    target: number;
+    weight: number;
+}
+```
+
+Filter client-side:
+
+```text
+weight >= edgeThreshold
+```
+
+Prefer:
+
+```text
+LineSegments
+GPU buffers
+```
+
+over thousands of independent React objects.
+
+---
+
+# 83. Connectome Edge Rendering
+
+Edge opacity:
+
+```text
+normalized(weight)
+```
+
+Edge width:
+
+```text
+log scaled
+```
+
+Optional particle flow uses instancing.
+
+Particles should be disabled automatically when:
+
+```text
+visible_edges > threshold
+```
+
+to preserve FPS.
+
+---
+
+# 84. Resection Editing State
+
+```typescript
+interface ResectionDraft {
+  regions: Record<number, number>;
+}
+```
+
+Example:
+
+```typescript
+{
+   17: 0.8,
+   19: 0.4
+}
+```
+
+Meaning:
+
+```text
+Region 17 = 80% removed
+Region 19 = 40% removed
+```
+
+---
+
+# 85. Resection Interaction
+
+User clicks region.
+
+Side panel:
+
+```text
+Include in resection
+
+Removal:
+
+0% ───────●──────── 100%
+```
+
+Updates draft.
+
+Do not call backend every slider movement.
+
+Keep local draft.
+
+User presses:
+
+```text
+Simulate
+```
+
+Then persist scenario.
+
+---
+
+# 86. Simulation Interaction Sequence
+
+Frontend:
+
+```text
+User edits regions
+↓
+Create resection
+↓
+Create scenario
+↓
+POST simulate
+↓
+Receive job ID
+↓
+Subscribe / poll status
+↓
+Simulation completes
+↓
+Fetch result
+↓
+Animate transition
+```
+
+---
+
+# 87. Real-Time Job Progress
+
+Initial:
+
+```text
+poll every 1–2 seconds
+```
+
+Later:
+
+```text
+WebSocket or Server-Sent Events
+```
+
+WebSocket event:
+
+```json
+{
+  "jobId": "JOB1",
+  "progress": 70,
+  "stage": "COMPUTING_CENTRALITY"
+}
+```
+
+---
+
+# 88. 3D Resection Animation
+
+Animation controller sequence:
+
+```text
+0–200 ms
+selected region highlight
+
+200–500 ms
+resection boundary pulse
+
+500–900 ms
+region opacity decreases
+
+650–1100 ms
+affected edges fade
+
+900–1200 ms
+metric values animate
+```
+
+Framer Motion handles panels.
+
+Three.js tweening handles meshes.
+
+---
+
+# 89. Before / After Mode
+
+Render two canvases only if GPU performance is acceptable.
+
+Better option:
+
+one scene with two viewports.
+
+Shared camera quaternion:
+
+```typescript
+cameraSyncStore
+```
+
+Changes in one update both.
+
+---
+
+# 90. Scenario Comparison State
+
+```typescript
+interface ScenarioComparisonState {
+    scenarioIds: string[];
+    activeMetric: string;
+    synchronizedCamera: boolean;
+}
+```
+
+Max simultaneous 3D comparisons:
+
+```text
+3 or 4
+```
+
+More scenarios use cards/charts rather than live 3D scenes.
+
+---
+
+# 91. Sensitivity Layer
+
+Input:
+
+```text
+region_id
+sensitivity_score
+```
+
+Normalize:
+
+```text
+0..1
+```
+
+Shader maps value to heat representation.
+
+Hover shows:
+
+```text
+region
+sensitivity
+baseline prediction
+modified prediction
+```
+
+---
+
+# 92. Prediction Panel
+
+Component tree:
+
+```text
+<PredictionPanel>
+
+    <ProbabilityGauge />
+
+    <ConfidenceInterval />
+
+    <StabilityBadge />
+
+    <CalibrationIndicator />
+
+    <ContributionChart />
+
+    <ResearchDisclaimer />
+
+</PredictionPanel>
+```
+
+Never hide uncertainty behind hover text.
+
+---
+
+# 93. Metrics Panel
+
+Components:
+
+```text
+MetricDeltaCard
+```
+
+Props:
+
+```typescript
+interface MetricDeltaCardProps {
+    title: string;
+    before: number;
+    after: number;
+    delta: number;
+    unit?: string;
+}
+```
+
+Example:
+
+```text
+GLOBAL EFFICIENCY
+
+0.640
+
+→
+
+0.520
+
+-18.75%
+```
+
+---
+
+# 94. Counterfactual UI
+
+Flow:
+
+```text
+Generate alternatives
+↓
+Backend search
+↓
+Candidate list
+↓
+Ranked research scenarios
+↓
+Hover candidate
+↓
+Preview brain
+↓
+Click candidate
+↓
+Full scenario analysis
+```
+
+Cards show:
+
+```text
+target coverage
+
+network loss
+
+hub damage
+
+prediction
+
+uncertainty
+```
+
+Not only prediction.
+
+---
+
+# 95. Experiment UI
+
+Table fields:
+
+```text
+experiment name
+dataset
+atlas
+feature set
+model
+validation
+ROC-AUC
+Brier
+status
+date
+```
+
+Experiment detail:
+
+```text
+config
+metrics
+fold results
+ROC
+PR curve
+calibration
+feature importance
+provenance
+```
+
+---
+
+# 96. Provenance Drawer
+
+Any prediction can open:
+
+```text
+View Provenance
+```
+
+Drawer:
+
+```text
+Dataset
+IDEAS v1
+
+Atlas
+Schaefer-100
+
+Simulation
+weighted-v1
+
+Feature Pipeline
+graph-delta-v1
+
+Model
+xgb-v1.2
+
+Git Commit
+a839c1f
+
+Model Artifact
+...
+
+Experiment
+EXP-042
+```
+
+This is a key differentiator.
+
+---
+
+# 97. Error Model
+
+Backend standard response:
+
+```json
+{
+  "error": {
+    "code": "INVALID_CONNECTOME",
+    "message": "Connectivity matrix contains NaN values.",
+    "details": {
+      "patientId": "P021"
+    }
+  }
+}
+```
+
+Error codes:
+
+```text
+PATIENT_NOT_FOUND
+
+ATLAS_NOT_SUPPORTED
+
+CONNECTOME_NOT_FOUND
+
+INVALID_CONNECTOME
+
+INVALID_RESECTION
+
+SIMULATION_FAILED
+
+MODEL_INCOMPATIBLE
+
+MODEL_NOT_FOUND
+
+DATA_LEAKAGE_DETECTED
+
+JOB_FAILED
+```
+
+---
+
+# 98. Scientific Validation Errors
+
+Treat scientific-data errors differently from server errors.
+
+Example:
+
+```text
+HTTP 422
+
+CONNECTOME_REGION_MISMATCH
+
+Matrix dimension:
+100
+
+Atlas regions:
+200
+```
+
+Do not silently adapt.
+
+---
+
+# 99. Logging
+
+Structured JSON logs.
+
+Every request:
+
+```text
+request_id
+user_id
+route
+duration
+status
+```
+
+Scientific operations:
+
+```text
+patient_id
+scenario_id
+simulation_id
+experiment_id
+model_id
+```
+
+Never log sensitive source data.
+
+---
+
+# 100. Metrics / Observability
+
+Track:
+
+```text
+HTTP latency
+
+simulation runtime
+
+feature extraction runtime
+
+prediction runtime
+
+counterfactual runtime
+
+failed jobs
+
+queue depth
+
+cache hit ratio
+```
+
+Scientific telemetry:
+
+```text
+average visible graph size
+
+invalid connectome rate
+
+experiment failures
+
+prediction distributions
+```
+
+---
+
+# 101. Authentication
+
+For public demo:
+
+```text
+optional account or no auth
+```
+
+For lab deployment:
+
+```text
+OIDC/OAuth2
+```
+
+Roles:
+
+```text
+VIEWER
+
+RESEARCHER
+
+ADMIN
+```
+
+Permissions:
+
+```text
+VIEWER
+read
+
+RESEARCHER
+create scenarios
+run simulations
+run experiments
+
+ADMIN
+datasets
+models
+users
+```
+
+---
+
+# 102. Audit Logging
+
+Research/lab version records:
+
+```text
+who
+what
+patient
+scenario
+action
+timestamp
+```
+
+Examples:
+
+```text
+created scenario
+
+changed resection
+
+ran prediction
+
+exported experiment
+```
+
+---
+
+# 103. Dataset Import Pipeline
+
+CLI:
+
+```bash
+neuroresect dataset import \
+    --dataset ideas-v1 \
+    --path ./datasets/raw
+```
+
+Sequence:
+
+```text
+discover subjects
+↓
+validate expected files
+↓
+extract metadata
+↓
+register patients
+↓
+register modalities
+↓
+import connectivity
+↓
+import resection metadata
+↓
+import outcomes
+↓
+generate import report
+```
+
+---
+
+# 104. Dataset Validation Report
+
+Example:
+
+```text
+Patients discovered: 216
+
+Valid: 205
+
+Missing connectomes: 5
+
+Missing outcomes: 6
+
+Invalid matrices: 0
+```
+
+Store report as artifact.
+
+---
+
+# 105. CLI Commands
+
+The scientific engine must be usable without UI.
+
+Examples:
+
+```bash
+neuroresect patient inspect P021
+```
+
+```bash
+neuroresect simulate \
+    --patient P021 \
+    --atlas schaefer100 \
+    --resection R123
+```
+
+```bash
+neuroresect experiment run \
+    configs/experiments/xgb_graph_delta.yaml
+```
+
+```bash
+neuroresect experiment reproduce EXP042
+```
+
+That last command is particularly valuable.
+
+---
+
+# 106. Unit Testing
+
+Graph tests:
+
+```text
+known 4-node graph
+
+known expected degree
+
+known expected efficiency
+```
+
+Resection tests:
+
+```text
+binary deletion
+
+weighted edge reduction
+
+double-endpoint reduction
+```
+
+Feature tests:
+
+```text
+delta correctness
+
+division-by-zero safety
+```
+
+---
+
+# 107. Property-Based Testing
+
+Use Hypothesis for:
+
+```text
+random symmetric matrices
+
+random resections
+
+fraction bounds
+```
+
+Properties:
+
+```text
+weighted resection should never increase affected edge weights
+
+100% resection equals complete incident-edge removal
+
+0% resection leaves graph unchanged
+```
+
+Excellent fit for this project.
+
+---
+
+# 108. ML Tests
+
+Tests:
+
+```text
+patient leakage prevention
+
+feature preprocessing occurs inside folds
+
+reproducibility with fixed seed
+
+model serialization
+
+probability range 0..1
+```
+
+---
+
+# 109. Dataset Tests
+
+For each imported patient:
+
+```text
+atlas size == matrix size
+
+no invalid weights
+
+patient appears only once
+
+resection fractions valid
+
+outcome format valid
+```
+
+---
+
+# 110. API Integration Tests
+
+Test complete flow:
+
+```text
+create resection
+↓
+create scenario
+↓
+run simulation
+↓
+get result
+↓
+run prediction
+↓
+fetch prediction
+```
+
+Use tiny synthetic graph fixture.
+
+Do not require real research dataset for CI.
+
+---
+
+# 111. Frontend Tests
+
+Component:
+
+```text
+region selection
+
+slider
+
+metric cards
+
+scenario card
+```
+
+E2E:
+
+```text
+open patient
+select region
+set 60%
+simulate
+wait for mock result
+verify metric update
+```
+
+Use Playwright.
+
+---
+
+# 112. 3D UI Testing
+
+Harder but important.
+
+Test:
+
+```text
+mesh loads
+
+region click updates store
+
+threshold reduces visible edges
+
+scenario switch changes resection state
+```
+
+Screenshot regression testing can help visual stability.
+
+---
+
+# 113. Performance Targets
+
+Initial targets:
+
+```text
+Patient workspace initial load:
+< 3 sec
+
+Region interaction:
+< 50 ms
+
+Edge threshold update:
+< 100 ms
+
+Cached prediction:
+< 300 ms
+
+Basic simulation:
+< 5 sec for 100–200 node graphs
+
+3D frame rate:
+> 45 FPS on modern laptop
+```
+
+Counterfactual jobs can run asynchronously.
+
+---
+
+# 114. Model Training Performance
+
+Do not optimize prematurely.
+
+Dataset size is likely modest.
+
+Focus on:
+
+```text
+correct validation
+
+reproducibility
+
+interpretability
+```
+
+rather than distributed training.
+
+---
+
+# 115. Docker Compose
+
+Services:
+
+```yaml
+services:
+
+  web:
+    ...
+
+  api:
+    ...
+
+  worker-simulation:
+    ...
+
+  worker-experiment:
+    ...
+
+  postgres:
+    ...
+
+  redis:
+    ...
+
+  minio:
+    ...
+
+  mlflow:
+    ...
+```
+
+---
+
+# 116. Local Ports
+
+Example:
+
+```text
+3000  web
+
+8000  API
+
+5432  PostgreSQL
+
+6379  Redis
+
+9000  MinIO
+
+5000  MLflow
+```
+
+---
+
+# 117. CI Pipeline
+
+Pull request:
+
+```text
+Python lint
+↓
+Python type checks
+↓
+Python unit tests
+↓
+scientific correctness tests
+↓
+API tests
+↓
+TypeScript lint
+↓
+frontend tests
+↓
+frontend build
+↓
+Docker build
+```
+
+---
+
+# 118. Experiment Reproducibility
+
+For every experiment persist:
+
+```text
+git commit
+
+Docker image hash
+
+Python dependencies
+
+dataset version
+
+dataset checksum
+
+config YAML
+
+seed
+
+feature pipeline version
+
+model version
+```
+
+`provenance.json`:
+
+```json
+{
+  "gitCommit": "a839c1f",
+  "dataset": "ideas-v1",
+  "datasetChecksum": "...",
+  "atlas": "schaefer100",
+  "featureSet": "combined-v2",
+  "model": "xgb-v1",
+  "seed": 42
+}
+```
+
+---
+
+# 119. Multi-Atlas Experiment
+
+Same patients:
+
+```text
+Desikan
+
+Schaefer100
+
+Schaefer200
+```
+
+Experiment coordinator runs separate feature generation.
+
+Results:
+
+```text
+atlas-specific model
+
+prediction agreement
+
+metric variation
+```
+
+Atlas consistency:
+
+```text
+percentage of models producing same outcome class
+```
+
+---
+
+# 120. Model Registry
+
+Each model records:
+
+```text
+training experiment
+
+dataset
+
+atlas
+
+required features
+
+required modalities
+
+metrics
+
+calibration
+
+artifact
+```
+
+Model state:
+
+```text
+DEVELOPMENT
+
+VALIDATED_RESEARCH
+
+ARCHIVED
+```
+
+Avoid terms like:
+
+```text
+CLINICALLY APPROVED
+```
+
+unless that becomes factually true someday.
+
+---
+
+# 121. Missing-Modality Resolution
+
+Prediction request:
+
+```text
+patient modalities
+        ↓
+compatibility service
+        ↓
+compatible models
+        ↓
+rank by validation metric
+```
+
+But final model selection should be explicit.
+
+Do not invisibly switch models without showing the user.
+
+UI:
+
+```text
+Available data:
+
+DWI ✓
+MEG ✗
+fMRI ✓
+
+Selected model:
+
+DWI + fMRI model v1.3
+```
+
+---
+
+# 122. Future MEG Pipeline
+
+When added:
+
+```text
+raw FIF
+↓
+filter
+↓
+artifact correction
+↓
+epoching
+↓
+source reconstruction
+↓
+regional signal
+↓
+connectivity/features
+```
+
+Possible module:
+
+```text
+neurocore/meg/
+```
+
+using MNE.
+
+MEG features then implement `FeatureExtractor`.
+
+---
+
+# 123. Future fMRI Pipeline
+
+Concept:
+
+```text
+NIfTI
+↓
+registration
+↓
+atlas extraction
+↓
+regional time series
+↓
+functional connectivity
+↓
+features
+```
+
+Use:
+
+```text
+NiBabel
+Nilearn
+```
+
+Same multimodal feature interface.
+
+---
+
+# 124. Future HGM Pipeline
+
+Concept:
+
+```text
+intracranial signals
+↓
+high-gamma extraction
+↓
+electrode localization
+↓
+atlas-region mapping
+↓
+language-activation features
+```
+
+The rest of the application should not care how HGM features were produced.
+
+---
+
+# 125. Sequence Diagram — Simulation
+
+```text
+User
+ │
+ │ edits resection
+ ▼
+Web App
+ │
+ │ POST resection
+ ▼
+API
+ │
+ │ persist
+ ▼
+Postgres
+ │
+ ▼
+Web App
+ │
+ │ POST scenario
+ ▼
+API
+ │
+ ▼
+Postgres
+ │
+ ▼
+Web App
+ │
+ │ POST simulate
+ ▼
+API
+ │
+ │ enqueue
+ ▼
+Redis/Celery
+ │
+ ▼
+Simulation Worker
+ │
+ ├─ load connectome
+ ├─ build graph
+ ├─ baseline metrics
+ ├─ apply resection
+ ├─ post metrics
+ └─ deltas
+ │
+ ▼
+Postgres / Object Storage
+ │
+ ▼
+Web App
+ │
+ │ fetch completed result
+ ▼
+3D animation + metrics
+```
+
+---
+
+# 126. Sequence Diagram — Prediction
+
+```text
+User
+ │
+ ▼
+Web App
+ │
+ │ predict scenario
+ ▼
+API
+ │
+ ▼
+Prediction Worker
+ │
+ ├─ load simulation
+ ├─ build features
+ ├─ select model
+ ├─ predict
+ ├─ uncertainty
+ ├─ SHAP
+ └─ stability
+ │
+ ▼
+Prediction Store
+ │
+ ▼
+Web App
+ │
+ ├─ probability
+ ├─ interval
+ ├─ stability
+ └─ explanation
+```
+
+---
+
+# 127. Sequence Diagram — Counterfactual Search
+
+```text
+User
+ │
+ │ Generate alternatives
+ ▼
+API
+ │
+ ▼
+Counterfactual Worker
+ │
+ ▼
+Candidate Generator
+ │
+ ├─ R1
+ ├─ R2
+ ├─ R3
+ └─ ...
+ │
+ ▼
+Simulation Engine
+ │
+ ▼
+Prediction Engine
+ │
+ ▼
+Objective Evaluator
+ │
+ ▼
+Beam Search
+ │
+ ▼
+Top K candidates
+ │
+ ▼
+Database
+ │
+ ▼
+Frontend Comparison UI
+```
+
+---
+
+# 128. Essential MVP
+
+Do not attempt the entire LLD initially.
+
+The first complete vertical slice should be:
+
+```text
+ONE dataset
++
+ONE atlas
++
+ONE patient
++
+ONE connectome
++
+ONE actual resection
++
+weighted simulation
++
+graph metrics
++
+before/after visualization
+```
+
+That's milestone one.
+
+---
+
+# 129. MVP-2
+
+Then:
+
+```text
+all usable patients
++
+clinical outcomes
++
+feature pipeline
++
+grouped CV
++
+Logistic Regression
++
+SVM
++
+XGBoost
+```
+
+Now you have the research result.
+
+---
+
+# 130. MVP-3
+
+Then:
+
+```text
+manual resection editing
++
+3D simulation
++
+prediction
++
+uncertainty
+```
+
+Now you have the showcase.
+
+---
+
+# 131. MVP-4
+
+Then:
+
+```text
+sensitivity
++
+counterfactuals
++
+multi-atlas
+```
+
+Now it becomes exceptional.
+
+---
+
+# 132. Things Explicitly Out of Scope Initially
+
+Do not initially build:
+
+```text
+Kubernetes
+
+microservices per scientific function
+
+GraphQL
+
+LLM chatbot
+
+agentic AI
+
+real-time collaboration
+
+mobile app
+
+FHIR integration
+
+hospital EHR integration
+
+complex GNN
+
+multimodal transformer
+```
+
+Those would slow down the core research contribution.
+
+---
+
+# 133. Architectural Decision Records
+
+Create:
+
+```text
+docs/adr/
+```
+
+Example:
+
+```text
+ADR-001 Why weighted resection is default
+
+ADR-002 Why scientific core is framework-independent
+
+ADR-003 Why grouped cross-validation is mandatory
+
+ADR-004 Why predictions always include uncertainty
+
+ADR-005 Why classical ML precedes GNNs
+```
+
+This makes the project look exceptionally mature.
+
+---
+
+# 134. Definition of Done — Scientific Feature
+
+A feature is not done because code runs.
+
+It is done when:
+
+```text
+algorithm documented
+
+unit tests exist
+
+known synthetic example validated
+
+configuration versioned
+
+output provenance stored
+
+failure modes documented
+```
+
+---
+
+# 135. Definition of Done — UI Feature
+
+A UI feature is done when:
+
+```text
+loading state
+
+success state
+
+empty state
+
+error state
+
+keyboard interaction
+
+responsive layout
+
+performance verified
+```
+
+exist.
+
+---
+
+# 136. Definition of Done — Prediction
+
+A prediction cannot be displayed unless it has:
+
+```text
+model ID
+
+feature version
+
+dataset/version provenance
+
+confidence/uncertainty
+
+scenario reference
+
+research disclaimer
+```
+
+This rule should be enforced in code.
+
+---
+
+# 137. Final Module Dependency Rule
+
+The dependency graph should remain:
+
+```text
+              UI
+
+               ↓
+
+              API
+
+               ↓
+
+            Services
+
+               ↓
+
+            neurocore
+
+        ↙        ↓        ↘
+
+   imaging     graph      ML
+```
+
+Never:
+
+```text
+neurocore → API
+
+neurocore → React
+
+neurocore → database models
+```
+
+That separation is important because the scientific engine may eventually run:
+
+```text
+locally
+on HPC
+in notebooks
+through API
+in batch jobs
+```
+
+without modification.
+
+---
+
+# 138. The Most Important Internal Pipeline
+
+If only one part of this LLD is implemented extremely well, make it this:
+
+```text
+               Connectome
+                    │
+                    ▼
+               Brain Graph
+                    │
+            ┌───────┴────────┐
+            │                │
+            ▼                ▼
+        Baseline          Resection
+         Metrics              │
+                              ▼
+                       Modified Graph
+                              │
+                              ▼
+                         Post Metrics
+                              │
+            ┌─────────────────┘
+            ▼
+          Delta Features
+            │
+            ├── efficiency change
+            ├── connectivity loss
+            ├── hub disruption
+            ├── modularity change
+            └── regional changes
+            │
+            ▼
+        Feature Pipeline
+            │
+            ▼
+        Outcome Model
+            │
+            ├── probability
+            ├── uncertainty
+            ├── stability
+            └── explanation
+            │
+            ▼
+       Interactive 3D UI
+```
+
+That is the technical heart of NeuroResect.
+
+---
+
+# 139. Final Implementation Philosophy
+
+NeuroResect should behave like two products sharing the same core:
+
+### Research Engine
+
+```text
+deterministic
+testable
+reproducible
+versioned
+scriptable
+```
+
+### Interactive Research Workstation
+
+```text
+visual
+3D
+responsive
+explorable
+intuitive
+```
+
+The 3D workstation should never contain scientific logic that cannot also run through the Python research engine.
+
+Likewise, the research engine should never require the UI to produce a valid result.
+
+This separation is what allows NeuroResect to evolve from:
+
+```text
+portfolio project
+```
+
+into:
+
+```text
+research software
+```
+
+and potentially eventually into:
+
+```text
+a real lab tool.
+```

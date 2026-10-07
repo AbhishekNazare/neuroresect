@@ -1,0 +1,2391 @@
+# NeuroResect
+
+## Patient-Specific Virtual Resection & Brain Network Analysis Platform for Epilepsy Surgery
+
+**Document Type:** High-Level Design
+**System Type:** Research Software / Clinical Decision-Support Research Prototype
+**Primary Domain:** Epilepsy surgery, structural connectomics, neuroimaging, machine learning
+**Primary Objective:** Simulate patient-specific brain resections, quantify resulting network disruption, compare counterfactual surgical scenarios, and investigate whether network-level changes improve postoperative outcome prediction.
+
+---
+
+# 1. Vision
+
+NeuroResect is an interactive research platform that models a patient's brain as a structural network derived from neuroimaging data.
+
+Researchers can:
+
+* load an epilepsy patient's brain connectome;
+* inspect the brain in an interactive 3D environment;
+* visualize brain regions and structural connections;
+* overlay the patient's actual surgical resection;
+* manually design hypothetical resections;
+* simulate how those resections alter the structural brain network;
+* calculate network disruption;
+* predict postoperative outcomes;
+* compare multiple surgical scenarios;
+* quantify uncertainty;
+* examine which brain regions contributed most strongly to predictions;
+* run reproducible research experiments across cohorts.
+
+The long-term architecture supports:
+
+* DWI;
+* structural MRI;
+* MEG;
+* fMRI;
+* HGM / intracranial electrophysiology;
+* clinical variables.
+
+The initial implementation should focus on:
+
+**DWI-derived structural connectomes + actual resection information + patient outcomes.**
+
+---
+
+# 2. Core Research Question
+
+The primary scientific question should be:
+
+> Does patient-specific network disruption caused by surgical resection provide additional predictive information about postoperative epilepsy outcomes beyond standard patient and resection characteristics?
+
+The core experimental comparison:
+
+### Model A — Clinical Baseline
+
+Input:
+
+* age;
+* sex;
+* epilepsy duration;
+* seizure characteristics;
+* resection volume;
+* affected anatomical regions.
+
+### Model B — Baseline Connectome
+
+Input:
+
+* Model A features;
+* preoperative structural connectivity;
+* graph topology features.
+
+### Model C — Virtual Resection Model
+
+Input:
+
+* Model A;
+* Model B;
+* network characteristics after simulated resection;
+* delta network characteristics;
+* hub-disruption metrics;
+* connectivity-loss features.
+
+If Model C consistently outperforms A and B under proper patient-level validation, that becomes an actual research result.
+
+---
+
+# 3. Seven Core Capabilities
+
+The entire architecture should revolve around the seven major differentiators.
+
+## 3.1 Reproducible Experiments
+
+Every experiment must be reproducible from:
+
+* dataset version;
+* patient cohort;
+* atlas;
+* preprocessing version;
+* model;
+* hyperparameters;
+* random seed;
+* feature configuration;
+* resection algorithm.
+
+Example:
+
+```text
+Experiment: EXP-2026-042
+
+Dataset:
+IDEAS-II v1.0
+
+Atlas:
+Schaefer-100
+
+Resection:
+Weighted
+
+Features:
+Clinical
+Preoperative Graph
+Postoperative Graph
+Delta Graph
+
+Model:
+XGBoost
+
+Validation:
+5-Fold Grouped CV
+
+Seed:
+42
+```
+
+Every execution produces:
+
+```text
+experiment/
+├── config.yaml
+├── metrics.json
+├── predictions.csv
+├── feature_importance.csv
+├── model.pkl
+├── logs/
+├── figures/
+└── provenance.json
+```
+
+This means no result exists without provenance.
+
+---
+
+# 4. Prevent Patient-Level Data Leakage
+
+Biomedical ML is particularly vulnerable to leakage.
+
+The architecture must enforce:
+
+```text
+Patient 1001
+
+Training OR Validation OR Test
+
+Never more than one.
+```
+
+If multiple scans, atlases, visits, or derived files exist for the same patient:
+
+```text
+patient_id → group_id
+```
+
+All samples sharing that group must stay within the same split.
+
+The experiment service should reject configurations that attempt unsafe splitting.
+
+Example:
+
+```text
+Requested Split:
+RandomSplit ❌
+
+Detected:
+Repeated Patient IDs
+
+Recommended:
+GroupKFold ✅
+```
+
+The UI should visually display:
+
+```text
+Data Integrity
+
+✓ Patient-separated folds
+✓ No duplicated patient IDs
+✓ No post-outcome features in training
+✓ No leakage detected
+```
+
+This becomes an important part of the project's credibility.
+
+---
+
+# 5. Model Uncertainty
+
+NeuroResect must never display predictions as absolute truths.
+
+Bad:
+
+```text
+Surgery successful: YES
+```
+
+Better:
+
+```text
+Predicted probability of favorable seizure outcome
+
+72%
+
+95% Bootstrap Interval
+64% – 79%
+
+Model confidence
+Moderate
+```
+
+Potential uncertainty mechanisms:
+
+* bootstrap confidence intervals;
+* ensemble variance;
+* probability calibration;
+* conformal prediction;
+* Monte Carlo perturbation;
+* atlas sensitivity;
+* resection-boundary sensitivity.
+
+The platform should distinguish:
+
+```text
+Prediction
+Confidence
+Stability
+```
+
+These are different concepts.
+
+Example:
+
+```text
+Prediction:
+78% favorable
+
+Confidence:
+High
+
+Resection Sensitivity:
+Low
+
+Atlas Sensitivity:
+Moderate
+```
+
+---
+
+# 6. Resection Sensitivity Analysis
+
+Instead of analyzing one exact surgical mask, NeuroResect generates perturbations.
+
+For example:
+
+```text
+Original Resection
+
+R0
+```
+
+Generate:
+
+```text
+R-5mm
+R-3mm
+R0
+R+3mm
+R+5mm
+```
+
+or anatomical variations:
+
+```text
+R0 without hippocampus
+
+R0 + adjacent temporal region
+
+R0 preserving high-centrality hub
+```
+
+Each scenario is independently simulated.
+
+Output:
+
+| Scenario | Connectivity Loss | Global Efficiency Δ | Hub Damage | Predicted Favorable Outcome |
+| -------- | ----------------: | ------------------: | ---------: | --------------------------: |
+| R0       |               21% |                -13% |       0.31 |                         72% |
+| R-3mm    |               17% |                 -9% |       0.21 |                         76% |
+| R+3mm    |               29% |                -19% |       0.43 |                         61% |
+
+The UI should animate transitions between these scenarios.
+
+---
+
+# 7. Counterfactual Resection Search
+
+This is one of the most advanced components.
+
+Given:
+
+```text
+Target epileptogenic zone
++
+anatomical constraints
++
+regions that should preferably be preserved
+```
+
+the system generates possible resection scenarios.
+
+Conceptually:
+
+```text
+Original Proposed Resection
+           │
+           ▼
+ Candidate Generator
+           │
+    ┌──────┼──────┐
+    ▼      ▼      ▼
+   R1     R2      R3
+    │      │       │
+    ▼      ▼       ▼
+ Network Simulation
+    │      │       │
+ ML Outcome Prediction
+    │      │       │
+    └──────┼───────┘
+           ▼
+   Trade-Off Analysis
+```
+
+Objective function example:
+
+```text
+Minimize:
+
+network disruption
++
+hub destruction
++
+language-network disruption
+
+while:
+
+maintaining sufficient target coverage
+```
+
+Important:
+
+The system should label this:
+
+**Research Counterfactual Analysis**
+
+not:
+
+**Recommended Surgery**
+
+The system must never present itself as autonomous surgical advice.
+
+---
+
+# 8. Multi-Atlas Support
+
+Brain regions depend on the selected parcellation atlas.
+
+NeuroResect should treat an atlas as a pluggable abstraction.
+
+```text
+Atlas Interface
+
+├── Desikan-Killiany
+├── Destrieux
+├── Schaefer-100
+├── Schaefer-200
+├── AAL
+└── Future Atlases
+```
+
+Every atlas provides:
+
+```text
+atlas_id
+region_names
+region_labels
+region_meshes
+coordinates
+hemisphere
+parent_network
+adjacency_mapping
+```
+
+A researcher should be able to switch:
+
+```text
+Schaefer-100
+        ↓
+Schaefer-200
+```
+
+and rerun the same experiment.
+
+This enables atlas sensitivity analysis.
+
+Example UI:
+
+```text
+Atlas Robustness
+
+Schaefer-100     0.81 AUC
+Schaefer-200     0.79 AUC
+Desikan          0.77 AUC
+
+Prediction consistency: 87%
+```
+
+---
+
+# 9. Multimodal Architecture
+
+The architecture should not be locked to DWI.
+
+Each modality should behave like a plugin.
+
+```text
+                    Patient
+
+                       │
+       ┌───────────────┼──────────────┐
+       │               │              │
+       ▼               ▼              ▼
+
+     DWI              MEG            fMRI
+       │               │              │
+       ▼               ▼              ▼
+
+Structural         Temporal       Functional
+Features           Features       Features
+
+       │               │              │
+       └───────────────┼──────────────┘
+                       │
+                       ▼
+
+              Multimodal Fusion
+
+                       │
+                       ▼
+
+                 ML Prediction
+```
+
+Later:
+
+```text
+HGM
+EEG
+clinical data
+language scores
+genetics
+```
+
+can be added without changing the central architecture.
+
+---
+
+# 10. Missing-Modality Support
+
+Real clinical datasets rarely contain every modality.
+
+NeuroResect should support:
+
+```text
+Patient A
+DWI ✓
+MEG ✓
+fMRI ✓
+HGM ✓
+
+Patient B
+DWI ✓
+MEG ✓
+fMRI ✗
+HGM ✗
+
+Patient C
+DWI ✓
+MEG ✗
+fMRI ✓
+HGM ✗
+```
+
+The model registry should support different model families:
+
+```text
+DWI only
+
+DWI + MEG
+
+DWI + fMRI
+
+DWI + MEG + fMRI
+
+DWI + MEG + fMRI + HGM
+```
+
+The system selects the best compatible model.
+
+---
+
+# 11. High-Level System Architecture
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│                         USER                               │
+│                                                            │
+│ Researcher / Neuroscientist / Engineer                    │
+└───────────────────────────┬────────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────────┐
+│                    FRONTEND PLATFORM                       │
+│                                                            │
+│ Next.js / React / TypeScript                              │
+│ React Three Fiber                                         │
+│ Three.js                                                  │
+│ Plotly / D3                                               │
+│ Zustand / TanStack Query                                  │
+│                                                            │
+│ ┌──────────────────────────────────────────────────────┐   │
+│ │ Interactive 3D Brain                                │   │
+│ │ Connectivity Explorer                               │   │
+│ │ Resection Editor                                    │   │
+│ │ Scenario Comparison                                 │   │
+│ │ Prediction Dashboard                                │   │
+│ │ Experiment Dashboard                                │   │
+│ └──────────────────────────────────────────────────────┘   │
+└───────────────────────────┬────────────────────────────────┘
+                            │
+                       HTTPS / REST
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────────┐
+│                        API LAYER                           │
+│                                                            │
+│                         FastAPI                            │
+│                                                            │
+│ Patient API                                               │
+│ Brain API                                                 │
+│ Resection API                                             │
+│ Prediction API                                            │
+│ Experiment API                                            │
+│ Atlas API                                                 │
+│ Model Registry API                                        │
+└──────────────┬─────────────┬─────────────┬────────────────┘
+               │             │             │
+               ▼             ▼             ▼
+     ┌──────────────┐ ┌────────────┐ ┌───────────────┐
+     │ Imaging      │ │ Graph      │ │ ML Engine     │
+     │ Engine       │ │ Engine     │ │               │
+     │              │ │            │ │ sklearn       │
+     │ NiBabel      │ │ NetworkX   │ │ XGBoost       │
+     │ Nilearn      │ │ igraph     │ │ PyTorch       │
+     │ MNE          │ │ NumPy      │ │ Optuna        │
+     └───────┬──────┘ └──────┬─────┘ └───────┬───────┘
+             │               │               │
+             └───────────────┼───────────────┘
+                             ▼
+                 ┌────────────────────┐
+                 │ Experiment Engine  │
+                 │                    │
+                 │ MLflow             │
+                 │ DVC                │
+                 │ Config versioning  │
+                 └─────────┬──────────┘
+                           │
+                           ▼
+              ┌──────────────────────────┐
+              │       DATA PLATFORM      │
+              │                          │
+              │ PostgreSQL               │
+              │ Object Storage           │
+              │ Dataset Registry         │
+              │ Model Registry           │
+              │ Experiment Artifacts     │
+              └──────────────────────────┘
+```
+
+---
+
+# 12. Backend Services
+
+## Patient Service
+
+Responsibilities:
+
+```text
+Patient metadata
+Dataset membership
+Imaging availability
+Clinical variables
+Outcome metadata
+```
+
+Example API:
+
+```text
+GET /patients
+GET /patients/{id}
+GET /patients/{id}/modalities
+GET /patients/{id}/outcomes
+```
+
+---
+
+## Atlas Service
+
+Handles:
+
+```text
+atlas definitions
+region IDs
+region labels
+brain meshes
+coordinate mappings
+cross-atlas mappings
+```
+
+Endpoints:
+
+```text
+GET /atlases
+GET /atlases/{atlas}
+GET /atlases/{atlas}/regions
+GET /atlases/{atlas}/mesh
+```
+
+---
+
+# 13. Graph Engine
+
+This is one of the most important modules.
+
+Input:
+
+```text
+Connectivity Matrix
+
+N × N
+```
+
+Example:
+
+```text
+       A    B    C    D
+
+A      0   .84  .31  .02
+B     .84   0   .62  .15
+C     .31  .62   0   .76
+D     .02  .15  .76   0
+```
+
+Converted into:
+
+```text
+Graph G = (V, E)
+```
+
+Graph engine calculates:
+
+### Node-Level Metrics
+
+* degree;
+* weighted degree;
+* betweenness;
+* eigenvector centrality;
+* participation coefficient;
+* hub status.
+
+### Graph-Level Metrics
+
+* global efficiency;
+* characteristic path length;
+* modularity;
+* network density;
+* clustering;
+* assortativity;
+* small-world characteristics.
+
+---
+
+# 14. Virtual Resection Engine
+
+Input:
+
+```text
+Patient graph
++
+Resection mask
+```
+
+Output:
+
+```text
+Post-resection graph
+```
+
+Three strategies should be available.
+
+### Binary Resection
+
+Region removed completely.
+
+```text
+weight = 0
+```
+
+### Weighted Resection
+
+If 35% of a region was resected:
+
+```text
+remaining_weight = original_weight × 0.65
+```
+
+### Edge-Informed Resection
+
+Connections passing through the resection mask are weakened based on tract involvement.
+
+This would be an advanced version.
+
+---
+
+# 15. Delta Feature Engine
+
+Calculate:
+
+```text
+Δfeature = post-resection feature - pre-resection feature
+```
+
+Examples:
+
+```text
+Δ global efficiency
+
+Δ modularity
+
+Δ hub centrality
+
+Δ interhemispheric connectivity
+
+Δ temporal-network connectivity
+```
+
+These deltas become ML features.
+
+---
+
+# 16. Machine Learning Engine
+
+Initially:
+
+```text
+Logistic Regression
+
+SVM / SVC
+
+Random Forest
+
+XGBoost
+```
+
+Later:
+
+```text
+Graph Neural Network
+
+Graph Attention Network
+
+Multimodal Transformer
+```
+
+But classical models should come first.
+
+Why?
+
+Because epilepsy datasets are generally small relative to typical deep-learning datasets.
+
+Interpretability and proper validation matter more than using the newest architecture.
+
+---
+
+# 17. Explainability Engine
+
+Prediction should answer:
+
+```text
+WHY?
+```
+
+not only:
+
+```text
+WHAT?
+```
+
+Example:
+
+```text
+Predicted Favorable Outcome
+74%
+
+Top contributing factors:
+
+1. Limited hub disruption             +12%
+2. Preserved interhemispheric links   +8%
+3. Temporal connectivity loss         -7%
+4. Resection volume                   -4%
+```
+
+Possible tools:
+
+```text
+SHAP
+Permutation importance
+Feature ablation
+```
+
+---
+
+# 18. Background Job Architecture
+
+Some tasks may take minutes.
+
+Never make the browser wait.
+
+```text
+Frontend
+   │
+   │ POST /experiments
+   ▼
+FastAPI
+   │
+   ▼
+Job Queue
+   │
+   ├── Redis
+   │
+   ▼
+Workers
+   │
+   ├── graph simulation
+   ├── model training
+   ├── counterfactual search
+   └── uncertainty analysis
+```
+
+Worker options:
+
+```text
+Celery
+RQ
+Arq
+```
+
+For the project:
+
+**FastAPI + Redis + Celery** is reasonable.
+
+---
+
+# 19. Data Storage
+
+## PostgreSQL
+
+Stores:
+
+```text
+patients
+datasets
+atlases
+experiments
+models
+resections
+predictions
+scenarios
+users
+```
+
+## Object Storage
+
+Stores:
+
+```text
+NIfTI
+connectivity matrices
+brain meshes
+model binaries
+plots
+experiment artifacts
+```
+
+Locally:
+
+```text
+MinIO
+```
+
+Later:
+
+```text
+S3
+```
+
+---
+
+# 20. Modern Interactive UI
+
+The frontend is where NeuroResect should visually separate itself from typical academic tools.
+
+Design direction:
+
+```text
+Dark neuroscience laboratory interface
+
+near-black / charcoal background
+glass panels
+soft lighting
+depth
+subtle neural-network animations
+3D spatial visualization
+minimal text
+high information density
+```
+
+Avoid making it look like a gaming dashboard.
+
+It should feel like:
+
+```text
+research workstation
++
+radiology software
++
+modern data visualization product
+```
+
+---
+
+# 21. Main Dashboard
+
+```text
+┌───────────────────────────────────────────────────────────────┐
+│ NEURORESECT                       Patient 021     Schaefer100 │
+├───────────────┬───────────────────────────────────────────────┤
+│               │                                               │
+│ Patient       │                                               │
+│ Overview      │                  3D BRAIN                     │
+│               │                                               │
+│ Connectome    │             interactive model                 │
+│               │                                               │
+│ Resection     │                                               │
+│               │                                               │
+│ Predictions   │                                               │
+│               │                                               │
+│ Scenarios     │                                               │
+│               │                                               │
+│ Experiments   │                                               │
+│               │                                               │
+├───────────────┴───────────────────────────┬───────────────────┤
+│ NETWORK METRICS                           │ MODEL OUTPUT      │
+│                                           │                   │
+│ Efficiency          0.62                  │ Favorable         │
+│ Modularity          0.48                  │ Outcome           │
+│ Hub Integrity       82%                   │                   │
+│                                           │     74%           │
+│                                           │                   │
+│                                           │ Confidence: High  │
+└───────────────────────────────────────────┴───────────────────┘
+```
+
+---
+
+# 22. 3D Brain Viewer
+
+Technology:
+
+```text
+React Three Fiber
+Three.js
+WebGL
+GLTF brain meshes
+Custom GLSL shaders where useful
+```
+
+The user should be able to:
+
+```text
+rotate
+zoom
+pan
+isolate hemisphere
+select region
+hover region
+display connectivity
+hide cortex
+display internal connections
+toggle resection
+compare before / after
+```
+
+---
+
+# 23. Brain Rendering Modes
+
+## Anatomical Mode
+
+Shows cortical regions.
+
+```text
+Frontal
+Temporal
+Parietal
+Occipital
+Insula
+```
+
+Hover:
+
+```text
+Left Superior Temporal Gyrus
+
+Resection:
+34%
+
+Centrality:
+0.72
+
+Hub:
+Yes
+```
+
+---
+
+## Connectome Mode
+
+Brain becomes semi-transparent.
+
+Network edges appear inside.
+
+```text
+node = region
+
+edge thickness = structural connectivity strength
+```
+
+Slider:
+
+```text
+Connectivity Threshold
+
+──────────●──────────
+
+0.35
+```
+
+Lower-value connections disappear dynamically.
+
+---
+
+# 24. Virtual Resection Mode
+
+The user selects regions directly on the 3D brain.
+
+Example:
+
+```text
+Click region
+
+↓
+
+Add to Proposed Resection
+```
+
+Selected regions become visually distinct.
+
+Right panel:
+
+```text
+PROPOSED RESECTION
+
+Left Hippocampus       80%
+Left Temporal Pole     45%
+Amygdala               60%
+
+Total Volume
+31.4 cm³
+
+[ SIMULATE ]
+```
+
+Click:
+
+**SIMULATE**
+
+and the brain transitions smoothly into the post-resection state.
+
+---
+
+# 25. Visual Resection Effect
+
+Do not make the brain simply disappear instantly.
+
+Use animation.
+
+### Step 1
+
+Selected region glows.
+
+### Step 2
+
+Resection boundary appears.
+
+### Step 3
+
+Region becomes translucent.
+
+### Step 4
+
+Connections affected by resection progressively disappear.
+
+### Step 5
+
+Network reorganizes visually.
+
+### Step 6
+
+Metrics animate from:
+
+```text
+Before
+
+Global Efficiency
+0.64
+```
+
+to:
+
+```text
+After
+
+Global Efficiency
+0.52
+
+▼18.7%
+```
+
+Duration:
+
+roughly 800–1200 ms.
+
+Subtle.
+
+Not flashy.
+
+---
+
+# 26. Before / After Mode
+
+Split-screen option:
+
+```text
+BEFORE                      AFTER
+
+     🧠                        🧠
+
+Global Efficiency            Global Efficiency
+
+0.64                         0.52
+
+Hub Integrity                Hub Integrity
+
+91%                          74%
+```
+
+The 3D cameras remain synchronized.
+
+Rotate one brain:
+
+both rotate.
+
+---
+
+# 27. Scenario Comparison
+
+Researchers should compare multiple resections simultaneously.
+
+```text
+Scenario A
+Actual Resection
+
+Scenario B
+Smaller Temporal Resection
+
+Scenario C
+Hub-Preserving Counterfactual
+```
+
+3D thumbnails:
+
+```text
+     A               B                C
+
+    🧠              🧠               🧠
+
+Outcome          Outcome          Outcome
+
+71%              76%              81%
+
+Network loss     Network loss     Network loss
+
+23%              18%              12%
+```
+
+Click any card to inspect.
+
+---
+
+# 28. Counterfactual Explorer
+
+One of the signature screens.
+
+```text
+┌─────────────────────────────────────────────┐
+│ COUNTERFACTUAL RESECTION EXPLORER           │
+├─────────────────────────────────────────────┤
+│                                             │
+│             Interactive 3D Brain            │
+│                                             │
+├─────────────────────────────────────────────┤
+│                                             │
+│ Candidate         Network      Prediction   │
+│                                             │
+│ Original          -23%            71%       │
+│ Candidate 01      -17%            76%       │
+│ Candidate 02      -11%            80%       │
+│ Candidate 03      -19%            74%       │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+Hover candidate:
+
+brain instantly morphs to that resection.
+
+---
+
+# 29. Sensitivity Heatmap
+
+3D brain heatmap showing:
+
+> How much does removing this region alter the prediction?
+
+Example:
+
+```text
+LOW sensitivity
+
+blue
+
+↓
+
+green
+
+↓
+
+yellow
+
+↓
+
+HIGH sensitivity
+
+red
+```
+
+Hover:
+
+```text
+Left Inferior Frontal
+
+Outcome sensitivity
+
++8.7 percentage points
+
+Network disruption
+
+High
+```
+
+This can visually show critical regions.
+
+---
+
+# 30. Network Animation
+
+Connectivity should not be static.
+
+Use subtle movement:
+
+```text
+node → edge → node
+```
+
+Small traveling particles can indicate network pathways.
+
+Important:
+
+Only use animation when:
+
+```text
+Connectivity Animation: ON
+```
+
+Default should be subtle to avoid distraction.
+
+---
+
+# 31. Time-Based Animation
+
+For sensitivity/counterfactual analysis:
+
+```text
+Resection size
+
+0mm
+ ───────────────●────────────
+                    8mm
+```
+
+As the user drags the slider:
+
+```text
+3D resection changes
+
+network updates
+
+metrics update
+
+prediction updates
+```
+
+This is a very powerful visual interaction.
+
+---
+
+# 32. Glass UI Panels
+
+Panels can use:
+
+```text
+semi-transparent background
+blur
+soft borders
+depth
+subtle shadows
+```
+
+but should remain readable.
+
+Example information card:
+
+```text
+╭────────────────────────────╮
+│ GLOBAL EFFICIENCY          │
+│                            │
+│ 0.521                      │
+│                            │
+│ ↓ 18.7%                    │
+│                            │
+│ relative to baseline       │
+╰────────────────────────────╯
+```
+
+---
+
+# 33. 3D Depth Effects
+
+Use carefully:
+
+* perspective camera;
+* depth-of-field for screenshots/presentation mode;
+* ambient lighting;
+* directional lighting;
+* hemisphere shadowing;
+* selection bloom;
+* animated clipping planes.
+
+Avoid:
+
+* excessive neon;
+* particle explosions;
+* lens flare;
+* constant camera motion.
+
+The interface needs to look scientific.
+
+---
+
+# 34. Region Inspection
+
+Click:
+
+```text
+Left Hippocampus
+```
+
+Side panel opens:
+
+```text
+LEFT HIPPOCAMPUS
+
+Atlas ID
+17
+
+Hemisphere
+Left
+
+Baseline Centrality
+0.67
+
+Post-Resection Centrality
+0.38
+
+Connectivity Loss
+43%
+
+Resection Percentage
+72%
+
+Hub Status
+Moderate
+
+Outcome Contribution
+-4.8%
+```
+
+---
+
+# 35. Prediction UI
+
+Instead of one number:
+
+```text
+Outcome Prediction
+
+74%
+```
+
+show:
+
+```text
+FAVORABLE OUTCOME
+
+74%
+
+Confidence interval
+67–81%
+
+Calibration
+Good
+
+Prediction Stability
+High
+
+Resection Sensitivity
+Moderate
+```
+
+Below:
+
+```text
+Main contributing factors
+
+Preserved frontal connectivity      +9%
+Low hub disruption                  +7%
+Temporal connectivity loss          -5%
+Large resection volume              -3%
+```
+
+---
+
+# 36. Research Experiment Dashboard
+
+Separate from the patient viewer.
+
+```text
+Experiments
+
+EXP-0042
+Schaefer100
+XGBoost
+AUC 0.81
+
+EXP-0041
+Desikan
+SVM
+AUC 0.77
+
+EXP-0040
+Schaefer200
+Logistic Regression
+AUC 0.74
+```
+
+Filtering:
+
+```text
+Dataset
+Atlas
+Model
+Feature Set
+Date
+Status
+```
+
+---
+
+# 37. Experiment Comparison
+
+Allow researchers to select experiments:
+
+```text
+☑ EXP-0042
+☑ EXP-0041
+☑ EXP-0038
+```
+
+and compare:
+
+```text
+AUC
+
+Calibration
+
+F1
+
+Sensitivity
+
+Specificity
+
+Feature importance
+
+Atlas
+
+Cross-validation variance
+```
+
+This makes NeuroResect useful for actual research instead of simply being a visual demo.
+
+---
+
+# 38. Research Provenance
+
+Every result should expose:
+
+```text
+Dataset
+Dataset version
+Code commit
+Model version
+Atlas
+Feature pipeline
+Resection method
+Training cohort
+Seed
+Timestamp
+```
+
+Example:
+
+```text
+Reproduce Experiment
+
+$ neuroresect run EXP-0042
+```
+
+That would be extremely impressive.
+
+---
+
+# 39. Suggested Technology Stack
+
+## Frontend
+
+```text
+Next.js
+React
+TypeScript
+Tailwind CSS
+shadcn/ui
+React Three Fiber
+Three.js
+Plotly
+D3.js
+TanStack Query
+Zustand
+Framer Motion
+```
+
+React Three Fiber becomes the center of the 3D system.
+
+---
+
+## Backend
+
+```text
+Python
+FastAPI
+Pydantic
+SQLAlchemy
+Celery
+Redis
+```
+
+---
+
+## Scientific Computing
+
+```text
+NumPy
+SciPy
+Pandas
+NetworkX
+igraph
+NiBabel
+Nilearn
+MNE-Python
+```
+
+---
+
+## Machine Learning
+
+```text
+scikit-learn
+XGBoost
+Optuna
+SHAP
+PyTorch
+PyTorch Geometric
+```
+
+PyTorch Geometric should come later.
+
+---
+
+## Data
+
+```text
+PostgreSQL
+MinIO
+DVC
+BIDS
+```
+
+---
+
+## ML / Research Tracking
+
+```text
+MLflow
+
+DVC
+
+Git
+```
+
+---
+
+## Infrastructure
+
+Initial:
+
+```text
+Docker Compose
+```
+
+Services:
+
+```text
+frontend
+backend
+postgres
+redis
+worker
+minio
+mlflow
+```
+
+Later:
+
+```text
+Kubernetes / HPC integration
+```
+
+Only if actually needed.
+
+---
+
+# 40. Repository Architecture
+
+```text
+neuroresect/
+
+├── apps/
+│   ├── web/
+│   │   ├── components/
+│   │   ├── brain/
+│   │   ├── scenarios/
+│   │   └── experiments/
+│   │
+│   └── api/
+│       ├── routes/
+│       ├── services/
+│       └── schemas/
+│
+├── neuroresect/
+│   ├── imaging/
+│   │   ├── loaders/
+│   │   ├── nifti/
+│   │   └── bids/
+│   │
+│   ├── atlas/
+│   │
+│   ├── graph/
+│   │   ├── builder.py
+│   │   ├── metrics.py
+│   │   └── comparison.py
+│   │
+│   ├── resection/
+│   │   ├── binary.py
+│   │   ├── weighted.py
+│   │   ├── simulator.py
+│   │   └── perturbation.py
+│   │
+│   ├── counterfactual/
+│   │
+│   ├── features/
+│   │
+│   ├── models/
+│   │
+│   ├── uncertainty/
+│   │
+│   ├── explainability/
+│   │
+│   └── experiments/
+│
+├── datasets/
+│
+├── configs/
+│
+├── tests/
+│
+├── notebooks/
+│
+├── scripts/
+│
+├── docker/
+│
+├── docs/
+│
+└── README.md
+```
+
+---
+
+# 41. Database Model
+
+Core entities:
+
+```text
+Patient
+
+Dataset
+
+Scan
+
+Atlas
+
+Connectome
+
+Resection
+
+Scenario
+
+Experiment
+
+Model
+
+Prediction
+
+Outcome
+```
+
+Relationships:
+
+```text
+Patient
+   │
+   ├── Scan
+   │
+   ├── Connectome
+   │
+   ├── Outcome
+   │
+   └── Resection
+          │
+          └── Scenario
+                 │
+                 └── Prediction
+```
+
+---
+
+# 42. API Example
+
+## Load patient
+
+```text
+GET /api/v1/patients/P021
+```
+
+## Load connectome
+
+```text
+GET /api/v1/patients/P021/connectome?atlas=schaefer100
+```
+
+## Create resection scenario
+
+```text
+POST /api/v1/scenarios
+```
+
+## Run simulation
+
+```text
+POST /api/v1/scenarios/{scenarioId}/simulate
+```
+
+## Predict outcome
+
+```text
+POST /api/v1/scenarios/{scenarioId}/predict
+```
+
+## Generate counterfactuals
+
+```text
+POST /api/v1/scenarios/{scenarioId}/counterfactuals
+```
+
+---
+
+# 43. Performance
+
+3D data must not freeze the browser.
+
+Use:
+
+```text
+precomputed brain meshes
+
+compressed GLTF
+
+Web Workers
+
+lazy loading
+
+level-of-detail meshes
+
+GPU instancing
+
+edge thresholding
+```
+
+Do not render:
+
+```text
+50,000 connectivity edges
+```
+
+simultaneously.
+
+Render strongest edges or aggregate connections.
+
+---
+
+# 44. Caching
+
+Cache:
+
+```text
+atlas meshes
+
+connectivity matrices
+
+graph metrics
+
+patient summaries
+
+model predictions
+
+counterfactual results
+```
+
+Redis can be used for expensive calculation results.
+
+---
+
+# 45. Security
+
+Initial public dataset version:
+
+```text
+de-identified data only
+```
+
+Future clinical version should include:
+
+```text
+authentication
+
+RBAC
+
+audit logging
+
+data encryption
+
+HIPAA-aware deployment
+
+PHI isolation
+
+access logging
+```
+
+Roles could eventually include:
+
+```text
+Researcher
+Clinician
+Administrator
+Viewer
+```
+
+---
+
+# 46. Research Safety
+
+Every prediction screen should display:
+
+```text
+Research Prototype
+
+Not validated for clinical decision-making.
+Not intended to recommend surgical treatment.
+```
+
+This should exist because the software visually resembles a clinical platform.
+
+---
+
+# 47. Testing Strategy
+
+## Unit Tests
+
+```text
+graph metrics
+resection operations
+atlas mapping
+feature generation
+model loading
+```
+
+## Data Integrity Tests
+
+```text
+patient split leakage
+
+duplicate patients
+
+missing outcomes
+
+malformed connectivity matrices
+```
+
+## Reproducibility Tests
+
+Given:
+
+```text
+same config
+same dataset
+same seed
+```
+
+expect:
+
+```text
+same model results
+```
+
+within defined tolerance.
+
+## UI Tests
+
+```text
+region selection
+
+resection editing
+
+scenario switching
+
+brain synchronization
+
+prediction loading
+```
+
+---
+
+# 48. CI/CD
+
+GitHub Actions:
+
+```text
+push
+  ↓
+lint
+  ↓
+unit tests
+  ↓
+data-integrity tests
+  ↓
+frontend tests
+  ↓
+Docker build
+  ↓
+integration test
+```
+
+No experiment code should merge if core scientific tests fail.
+
+---
+
+# 49. Development Roadmap
+
+## Phase 1 — Scientific Core
+
+Build:
+
+```text
+dataset loader
+↓
+connectome graph
+↓
+graph metrics
+↓
+actual resection
+↓
+virtual resection
+↓
+before/after comparison
+```
+
+This is the scientific MVP.
+
+---
+
+## Phase 2 — Outcome Prediction
+
+Add:
+
+```text
+clinical features
+graph features
+delta features
+ML models
+patient-level CV
+```
+
+Main deliverable:
+
+```text
+Model A
+vs
+Model B
+vs
+Model C
+```
+
+---
+
+## Phase 3 — Research Quality
+
+Add:
+
+```text
+MLflow
+DVC
+uncertainty
+calibration
+SHAP
+ablation studies
+multi-atlas experiments
+```
+
+This is where the project becomes research-grade.
+
+---
+
+## Phase 4 — 3D Viewer
+
+Build:
+
+```text
+interactive brain
+region selection
+connectome rendering
+resection overlay
+before/after mode
+```
+
+---
+
+## Phase 5 — Interactive Simulation
+
+Add:
+
+```text
+manual resection editor
+live network recalculation
+animated network changes
+prediction updates
+```
+
+---
+
+## Phase 6 — Sensitivity Analysis
+
+Add:
+
+```text
+resection perturbation
+sensitivity heatmaps
+uncertainty
+prediction stability
+```
+
+---
+
+## Phase 7 — Counterfactual Search
+
+Add:
+
+```text
+candidate generation
+trade-off optimization
+scenario comparison
+```
+
+---
+
+## Phase 8 — Multimodal Expansion
+
+Later:
+
+```text
+MEG
+fMRI
+HGM
+clinical language scores
+```
+
+---
+
+# 50. What Makes NeuroResect Extraordinary
+
+The strength is not one feature.
+
+It is the combination:
+
+```text
+REAL EPILEPSY DATA
+        +
+PATIENT-SPECIFIC CONNECTOMES
+        +
+GRAPH THEORY
+        +
+VIRTUAL RESECTION
+        +
+MACHINE LEARNING
+        +
+UNCERTAINTY
+        +
+COUNTERFACTUAL ANALYSIS
+        +
+MULTI-ATLAS VALIDATION
+        +
+MULTIMODAL ARCHITECTURE
+        +
+REPRODUCIBLE EXPERIMENTS
+        +
+INTERACTIVE 3D SOFTWARE
+```
+
+Most student projects stop at:
+
+```text
+dataset
+↓
+model.fit()
+↓
+accuracy
+```
+
+NeuroResect instead becomes:
+
+```text
+               Scientific Question
+                       │
+                       ▼
+                 Real Patient Data
+                       │
+                       ▼
+                Connectome Model
+                       │
+                       ▼
+              Virtual Intervention
+                       │
+                       ▼
+               Network Simulation
+                       │
+                       ▼
+                ML Prediction
+                       │
+                       ▼
+                 Uncertainty
+                       │
+                       ▼
+             Counterfactual Search
+                       │
+                       ▼
+            Interactive 3D Analysis
+                       │
+                       ▼
+            Reproducible Experiment
+```
+
+That is what gives the project research depth.
+
+---
+
+# 51. The Demo Moment
+
+The most important product moment should look like this:
+
+You open a real de-identified patient.
+
+The 3D brain rotates slowly.
+
+Structural connections are visible inside.
+
+You say:
+
+> This is the patient's preoperative structural connectome.
+
+You enable:
+
+**Actual Resection**
+
+A portion of the temporal lobe becomes highlighted.
+
+You press:
+
+**Simulate Resection**
+
+Connections disappear.
+
+Metrics change.
+
+```text
+Global efficiency
+
+0.64 → 0.52
+```
+
+Prediction appears:
+
+```text
+Favorable outcome
+
+71%
+
+Confidence
+
+Moderate
+```
+
+Then you say:
+
+> The interesting part isn't the prediction. The system can evaluate how sensitive that prediction is to modifications of the resection.
+
+You move:
+
+```text
+Resection Margin
+
++3mm
+```
+
+The 3D brain changes.
+
+Network metrics recalculate.
+
+Prediction changes:
+
+```text
+71% → 62%
+```
+
+Then:
+
+**Generate Counterfactuals**
+
+Three alternative resections appear.
+
+You compare all four side-by-side.
+
+Finally:
+
+```text
+Experiment Provenance
+
+Dataset: IDEAS
+Atlas: Schaefer100
+Model: XGBoost
+Validation: GroupKFold
+Code Commit: 4db53f
+```
+
+That single demonstration communicates:
+
+**neuroscience + algorithms + ML + research methodology + backend + frontend + 3D graphics + software engineering.**
+
+---
+
+# 52. Final Product Identity
+
+## NeuroResect
+
+### Patient-Specific Virtual Resection and Brain Network Analysis for Epilepsy Research
+
+The project should not position itself as:
+
+**an epilepsy prediction app.**
+
+It should position itself as:
+
+> A research platform for investigating how patient-specific surgical interventions alter brain-network topology and how those alterations relate to postoperative outcomes.
+
+That distinction is what can make the project genuinely exceptional.
