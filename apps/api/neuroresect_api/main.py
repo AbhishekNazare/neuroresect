@@ -79,7 +79,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             for error in exc.errors()
         ]
         return JSONResponse(
-            APIError(422, "VALIDATION_ERROR", "Request validation failed.", {"issues": issues}).envelope(),
+            APIError(
+                422, "VALIDATION_ERROR", "Request validation failed.", {"issues": issues}
+            ).envelope(),
             status_code=422,
         )
 

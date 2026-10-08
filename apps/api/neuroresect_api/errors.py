@@ -14,6 +14,4 @@ class APIError(Exception):
         super().__init__(message)
 
     def envelope(self) -> dict[str, Any]:
-        return {
-            "error": {"code": self.code, "message": self.message, "details": self.details}
-        }
+        return {"error": {"code": self.code, "message": self.message, "details": self.details}}

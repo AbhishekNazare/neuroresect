@@ -32,9 +32,33 @@ def tiny_import():
         "dataset_id": "test-dataset",
         "synthetic": True,
         "nodes": [
-            {"id": 10, "name": "Left A", "hemisphere": "L", "network": "test", "x": -1, "y": 0, "z": 0},
-            {"id": 20, "name": "Middle B", "hemisphere": "M", "network": "test", "x": 0, "y": 0, "z": 0},
-            {"id": 30, "name": "Right C", "hemisphere": "R", "network": "test", "x": 1, "y": 0, "z": 0},
+            {
+                "id": 10,
+                "name": "Left A",
+                "hemisphere": "L",
+                "network": "test",
+                "x": -1,
+                "y": 0,
+                "z": 0,
+            },
+            {
+                "id": 20,
+                "name": "Middle B",
+                "hemisphere": "M",
+                "network": "test",
+                "x": 0,
+                "y": 0,
+                "z": 0,
+            },
+            {
+                "id": 30,
+                "name": "Right C",
+                "hemisphere": "R",
+                "network": "test",
+                "x": 1,
+                "y": 0,
+                "z": 0,
+            },
         ],
         "matrix": [[0, 1, 0], [1, 0, 1], [0, 1, 0]],
         "actual_resection": [{"region_id": 20, "fraction_removed": 0.5}],
@@ -47,8 +71,11 @@ def create_tiny_scenario(client, method="weighted"):
     response = client.post(
         f"{PREFIX}/scenarios",
         json={
-            "patient_id": "RESEARCH-001", "atlas_id": "tiny-3", "label": "Half of the bridge",
-            "method": method, "regions": [{"region_id": 20, "fraction_removed": 0.5}],
+            "patient_id": "RESEARCH-001",
+            "atlas_id": "tiny-3",
+            "label": "Half of the bridge",
+            "method": method,
+            "regions": [{"region_id": 20, "fraction_removed": 0.5}],
         },
     )
     assert response.status_code == 201, response.text
@@ -94,7 +121,9 @@ def test_import_simulate_export_and_restart(settings):
         assert reopened.get(f"{PREFIX}/jobs/{job_id}").json()["status"] == "SUCCEEDED"
         assert reopened.get(f"{route}/simulation").json() == result
         assert reopened.get(f"{PREFIX}/scenarios?patient_id=RESEARCH-001").json()[0] == scenario
-        assert reopened.get(f"{PREFIX}/patients/RESEARCH-001").json()["available_atlases"] == ["tiny-3"]
+        assert reopened.get(f"{PREFIX}/patients/RESEARCH-001").json()["available_atlases"] == [
+            "tiny-3"
+        ]
 
 
 def test_catalog_openapi_health_and_request_identity(client):
@@ -106,32 +135,38 @@ def test_catalog_openapi_health_and_request_identity(client):
     connectome = client.get(f"{PREFIX}/patients/{patient['id']}/connectome").json()
     assert len(connectome["nodes"]) == 64
     assert "matrix" not in connectome
-    assert "matrix" in client.get(
-        f"{PREFIX}/patients/{patient['id']}/connectome?include_matrix=true"
-    ).json()
+    assert (
+        "matrix"
+        in client.get(f"{PREFIX}/patients/{patient['id']}/connectome?include_matrix=true").json()
+    )
     schema = client.get("/openapi.json").json()
     assert f"{PREFIX}/scenarios/{{scenario_id}}/simulate" in schema["paths"]
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda value: value["matrix"][0].__setitem__(1, -1),
-    lambda value: value["matrix"][0].__setitem__(1, 0.4),
-    lambda value: value["matrix"][0].__setitem__(0, 1),
-    lambda value: value["nodes"][1].__setitem__("id", 10),
-    lambda value: value["actual_resection"][0].__setitem__("region_id", 999),
-    lambda value: value["actual_resection"][0].__setitem__("fraction_removed", 2),
-    lambda value: value.__setitem__("patient_id", "../outside"),
-    lambda value: value.__setitem__("deidentified", False),
-    lambda value: value["matrix"][0].__setitem__(1, True),
-    lambda value: value["nodes"].pop(),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda value: value["matrix"][0].__setitem__(1, -1),
+        lambda value: value["matrix"][0].__setitem__(1, 0.4),
+        lambda value: value["matrix"][0].__setitem__(0, 1),
+        lambda value: value["nodes"][1].__setitem__("id", 10),
+        lambda value: value["actual_resection"][0].__setitem__("region_id", 999),
+        lambda value: value["actual_resection"][0].__setitem__("fraction_removed", 2),
+        lambda value: value.__setitem__("patient_id", "../outside"),
+        lambda value: value.__setitem__("deidentified", False),
+        lambda value: value["matrix"][0].__setitem__(1, True),
+        lambda value: value["nodes"].pop(),
+    ],
+)
 def test_import_rejects_invalid_scientific_input(client, mutation):
     data = tiny_import()
     mutation(data)
     response = client.post(f"{PREFIX}/datasets/import", json=data)
     assert response.status_code == 422, response.text
     assert "error" in response.json()
-    assert all(patient["id"] != "RESEARCH-001" for patient in client.get(f"{PREFIX}/patients").json())
+    assert all(
+        patient["id"] != "RESEARCH-001" for patient in client.get(f"{PREFIX}/patients").json()
+    )
 
 
 def test_import_collisions_and_atlas_identity(client):
@@ -156,7 +191,9 @@ def test_scenario_rejects_bad_regions_and_unknown_entities(client):
         [{"region_id": 0, "fraction_removed": -0.2}],
         [{"region_id": 0, "fraction_removed": 0.2}] * 2,
     ):
-        response = client.post(f"{PREFIX}/scenarios", json={"patient_id": "DEMO-001", "regions": regions})
+        response = client.post(
+            f"{PREFIX}/scenarios", json={"patient_id": "DEMO-001", "regions": regions}
+        )
         assert response.status_code == 422
         assert set(response.json()) == {"error"}
     assert client.get(f"{PREFIX}/patients/UNKNOWN").status_code == 404
@@ -183,7 +220,8 @@ def test_real_sensitivity_and_constrained_counterfactuals(client):
     assert result["status"] == "SUCCEEDED", result
     assert len(result["result"]["variants"]) >= 3
     response = client.post(
-        f"{route}/counterfactuals", json={"protected_regions": [10], "minimum_target_coverage": 0.8},
+        f"{route}/counterfactuals",
+        json={"protected_regions": [10], "minimum_target_coverage": 0.8},
         headers={"Idempotency-Key": "alternatives-1"},
     )
     result = wait_for_job(client, response.json()["id"])
@@ -192,7 +230,8 @@ def test_real_sensitivity_and_constrained_counterfactuals(client):
         assert candidate["target_coverage"] >= 0.8
         assert all(region["region_id"] != 10 for region in candidate["regions"])
     conflict = client.post(
-        f"{route}/counterfactuals", json={"minimum_target_coverage": 0.9},
+        f"{route}/counterfactuals",
+        json={"minimum_target_coverage": 0.9},
         headers={"Idempotency-Key": "alternatives-1"},
     )
     assert conflict.status_code == 409
@@ -245,7 +284,11 @@ def test_body_limits_and_invalid_json_return_standard_errors(tmp_path):
         oversized = client.post(f"{PREFIX}/datasets/import", content=b"x" * 1025)
         assert oversized.status_code == 413
         assert oversized.json()["error"]["code"] == "REQUEST_TOO_LARGE"
-        invalid = client.post(f"{PREFIX}/datasets/import", content=b"{broken", headers={"Content-Type": "application/json"})
+        invalid = client.post(
+            f"{PREFIX}/datasets/import",
+            content=b"{broken",
+            headers={"Content-Type": "application/json"},
+        )
         assert invalid.status_code == 422
         assert invalid.json()["error"]["code"] == "VALIDATION_ERROR"
 
@@ -272,10 +315,14 @@ def test_experiment_and_prediction_roundtrip(client):
     assert set(experiment["models"]) == {"A", "B", "C"}
     assert client.get(f"{PREFIX}/experiments/{experiment['id']}/export").status_code == 200
     connectome = client.get(f"{PREFIX}/patients/DEMO-001/connectome").json()
-    scenario = client.post(f"{PREFIX}/scenarios", json={
-        "patient_id": "DEMO-001", "atlas_id": "demo-64",
-        "regions": connectome["actual_resection"],
-    }).json()
+    scenario = client.post(
+        f"{PREFIX}/scenarios",
+        json={
+            "patient_id": "DEMO-001",
+            "atlas_id": "demo-64",
+            "regions": connectome["actual_resection"],
+        },
+    ).json()
     prediction = client.post(f"{PREFIX}/scenarios/{scenario['id']}/predict")
     job = wait_for_job(client, prediction.json()["id"], timeout=60)
     assert job["status"] == "SUCCEEDED", job["error"]

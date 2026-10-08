@@ -47,39 +47,74 @@ from neurocore.validation import validate_connectome, validate_regions
 
 MODEL_VERSION = "synthetic-logistic-v1"
 DEFAULT_CONFIG = {
-    "name": "Synthetic A/B/C benchmark", "seed": 42, "folds": 5,
-    "n_patients": 80, "model_type": "logistic", "atlas_id": "demo-64",
+    "name": "Synthetic A/B/C benchmark",
+    "seed": 42,
+    "folds": 5,
+    "n_patients": 80,
+    "model_type": "logistic",
+    "atlas_id": "demo-64",
 }
-MODEL_NAMES = {"A": "Clinical and resection baseline", "B": "Preoperative connectome", "C": "Virtual resection and network change"}
+MODEL_NAMES = {
+    "A": "Clinical and resection baseline",
+    "B": "Preoperative connectome",
+    "C": "Virtual resection and network change",
+}
 
 
 def model_registry() -> list[dict]:
-    return [{
-        "id": f"synthetic-logistic-{atlas}-v1", "name": "Synthetic logistic research model",
-        "version": MODEL_VERSION, "atlas_id": atlas, "feature_version": FEATURE_VERSION,
-        "status": "DEVELOPMENT", "synthetic": True, "research_only": True,
-        "dataset_id": DATASET_ID, "model_type": "logistic", "required_modalities": ["DWI"],
-        "training": "80 generated synthetic participants; current participant excluded before all fits",
-        "calibration": "not externally calibrated or clinically validated",
-        "uncertainty": "64 patient-bootstrap refits; 95% percentile interval of model estimates",
-        "supported_resection_methods": ["weighted"], "supported_scientific_threshold": 0.0,
-        "imported_data_supported": False,
-    } for atlas in ("demo-64", "demo-96")]
+    return [
+        {
+            "id": f"synthetic-logistic-{atlas}-v1",
+            "name": "Synthetic logistic research model",
+            "version": MODEL_VERSION,
+            "atlas_id": atlas,
+            "feature_version": FEATURE_VERSION,
+            "status": "DEVELOPMENT",
+            "synthetic": True,
+            "research_only": True,
+            "dataset_id": DATASET_ID,
+            "model_type": "logistic",
+            "required_modalities": ["DWI"],
+            "training": "80 generated synthetic participants; current participant excluded before all fits",
+            "calibration": "not externally calibrated or clinically validated",
+            "uncertainty": "64 patient-bootstrap refits; 95% percentile interval of model estimates",
+            "supported_resection_methods": ["weighted"],
+            "supported_scientific_threshold": 0.0,
+            "imported_data_supported": False,
+        }
+        for atlas in ("demo-64", "demo-96")
+    ]
 
 
 def make_pipeline(model_type: str, seed: int) -> Pipeline:
     if model_type == "logistic":
         classifier = LogisticRegression(max_iter=2000, C=0.5, random_state=seed)
     elif model_type == "random_forest":
-        classifier = RandomForestClassifier(n_estimators=100, min_samples_leaf=3, max_depth=6, random_state=seed, n_jobs=1)
+        classifier = RandomForestClassifier(
+            n_estimators=100, min_samples_leaf=3, max_depth=6, random_state=seed, n_jobs=1
+        )
     elif model_type == "svm":
         classifier = SVC(C=1.0, kernel="rbf", probability=True, random_state=seed)
     elif model_type == "xgboost" and importlib.util.find_spec("xgboost"):
         from xgboost import XGBClassifier
-        classifier = XGBClassifier(n_estimators=100, max_depth=3, learning_rate=0.05, random_state=seed, n_jobs=1, eval_metric="logloss")
+
+        classifier = XGBClassifier(
+            n_estimators=100,
+            max_depth=3,
+            learning_rate=0.05,
+            random_state=seed,
+            n_jobs=1,
+            eval_metric="logloss",
+        )
     else:
         raise ValueError(f"Unsupported or unavailable model_type: {model_type}")
-    return Pipeline([("imputer", SimpleImputer(strategy="median")), ("scaler", StandardScaler()), ("classifier", classifier)])
+    return Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            ("classifier", classifier),
+        ]
+    )
 
 
 @lru_cache(maxsize=512)
@@ -91,16 +126,23 @@ def _synthetic_record(index: int, atlas_id: str) -> dict:
     features = extract_features(patient, connectome, regions, simulation)
     # Declared artificial data-generating mechanism, frozen independently of split seed.
     # Deliberately stochastic labels ensure models do not trivially reproduce an identity.
-    latent = (0.4 - 0.025 * (patient["age"] - 40) - 0.04 * (patient["epilepsy_duration"] - 12)
-              + 0.65 * (features["resection_fraction_sum"] - 2.5)
-              - 5.0 * (features["connectivity_loss"] - 0.07)
-              - 2.0 * features["hub_damage"])
+    latent = (
+        0.4
+        - 0.025 * (patient["age"] - 40)
+        - 0.04 * (patient["epilepsy_duration"] - 12)
+        + 0.65 * (features["resection_fraction_sum"] - 2.5)
+        - 5.0 * (features["connectivity_loss"] - 0.07)
+        - 2.0 * features["hub_damage"]
+    )
     probability = float(expit(latent))
     target = int(np.random.default_rng(99001 + index).random() < probability)
     return {
-        "patient_id": patient["id"], "scan_id": f"{patient['id']}-synthetic-dwi",
-        "record_id": f"{patient['id']}-{atlas_id}-actual", "features": features,
-        "target": target, "connectome_hash": content_hash(connectome_identity(connectome)),
+        "patient_id": patient["id"],
+        "scan_id": f"{patient['id']}-synthetic-dwi",
+        "record_id": f"{patient['id']}-{atlas_id}-actual",
+        "features": features,
+        "target": target,
+        "connectome_hash": content_hash(connectome_identity(connectome)),
     }
 
 
@@ -144,7 +186,9 @@ def classification_metrics(y, probabilities) -> dict:
     }
 
 
-def fit_fold(pipeline: Pipeline, features: np.ndarray, y: np.ndarray, train: np.ndarray, test: np.ndarray) -> tuple[Pipeline, np.ndarray]:
+def fit_fold(
+    pipeline: Pipeline, features: np.ndarray, y: np.ndarray, train: np.ndarray, test: np.ndarray
+) -> tuple[Pipeline, np.ndarray]:
     """Fit every preprocessing step exclusively on the training indices."""
     fitted = clone(pipeline).fit(features[train], y[train])
     return fitted, fitted.predict_proba(features[test])[:, 1]
@@ -158,14 +202,24 @@ def run_experiment(config: dict, output_dir: str | Path | None = None) -> dict:
     groups = np.array([record["patient_id"] for record in records])
     if min(np.bincount(y, minlength=2)) < config["folds"]:
         raise ValueError("Each outcome class must contain at least folds distinct patients")
-    splitter = StratifiedGroupKFold(n_splits=config["folds"], shuffle=True, random_state=config["seed"])
+    splitter = StratifiedGroupKFold(
+        n_splits=config["folds"], shuffle=True, random_state=config["seed"]
+    )
     folds = list(splitter.split(np.zeros((len(y), 1)), y, groups))
     fold_records = []
     for index, (train, test) in enumerate(folds):
         validate_split_records([records[i] for i in train], [records[i] for i in test])
         if len(np.unique(y[train])) != 2:
-            raise ValueError("Training fold contains only one class; reduce folds or increase cohort size")
-        fold_records.append({"fold": index + 1, "train_patient_ids": groups[train].tolist(), "test_patient_ids": groups[test].tolist()})
+            raise ValueError(
+                "Training fold contains only one class; reduce folds or increase cohort size"
+            )
+        fold_records.append(
+            {
+                "fold": index + 1,
+                "train_patient_ids": groups[train].tolist(),
+                "test_patient_ids": groups[test].tolist(),
+            }
+        )
     models = {}
     fitted_models = {}
     pipeline = make_pipeline(config["model_type"], config["seed"])
@@ -180,12 +234,16 @@ def run_experiment(config: dict, output_dir: str | Path | None = None) -> dict:
             fitted, probabilities = fit_fold(pipeline, features, y, train, test)
             out_of_fold[test] = probabilities
             assignments[test] = index + 1
-            fold_metrics.append({
-                "fold": index + 1, **classification_metrics(y[test], probabilities),
-                "train_n": len(train), "test_n": len(test),
-                "preprocessing_fit_patient_ids": groups[train].tolist(),
-                "scaler_mean": fitted.named_steps["scaler"].mean_.tolist(),
-            })
+            fold_metrics.append(
+                {
+                    "fold": index + 1,
+                    **classification_metrics(y[test], probabilities),
+                    "train_n": len(train),
+                    "test_n": len(test),
+                    "preprocessing_fit_patient_ids": groups[train].tolist(),
+                    "scaler_mean": fitted.named_steps["scaler"].mean_.tolist(),
+                }
+            )
             estimator = fitted.named_steps["classifier"]
             if hasattr(estimator, "coef_"):
                 coefficients.append(estimator.coef_[0])
@@ -197,35 +255,75 @@ def run_experiment(config: dict, output_dir: str | Path | None = None) -> dict:
         summary = {}
         for metric in metrics:
             values = [fold[metric] for fold in fold_metrics if fold[metric] is not None]
-            summary[metric] = {"mean": float(np.mean(values)) if values else None, "std": float(np.std(values)) if values else None}
+            summary[metric] = {
+                "mean": float(np.mean(values)) if values else None,
+                "std": float(np.std(values)) if values else None,
+            }
         fpr, tpr, roc_thresholds = roc_curve(y, out_of_fold)
         precision, recall, _ = precision_recall_curve(y, out_of_fold)
         observed, predicted = calibration_curve(y, out_of_fold, n_bins=6, strategy="uniform")
         predictions = [
-            {"patient_id": str(groups[i]), "target": int(y[i]), "probability": float(out_of_fold[i]), "fold": int(assignments[i])}
+            {
+                "patient_id": str(groups[i]),
+                "target": int(y[i]),
+                "probability": float(out_of_fold[i]),
+                "fold": int(assignments[i]),
+            }
             for i in range(len(y))
         ]
         models[key] = {
-            "id": key, "name": MODEL_NAMES[key], "feature_set": key, "feature_names": list(names),
-            "model_type": config["model_type"], "metrics": metrics, "fold_metrics": fold_metrics,
-            "metric_summary": summary, "predictions": predictions,
-            "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "thresholds": [float(v) if np.isfinite(v) else None for v in roc_thresholds]},
+            "id": key,
+            "name": MODEL_NAMES[key],
+            "feature_set": key,
+            "feature_names": list(names),
+            "model_type": config["model_type"],
+            "metrics": metrics,
+            "fold_metrics": fold_metrics,
+            "metric_summary": summary,
+            "predictions": predictions,
+            "roc_curve": {
+                "fpr": fpr.tolist(),
+                "tpr": tpr.tolist(),
+                "thresholds": [float(v) if np.isfinite(v) else None for v in roc_thresholds],
+            },
             "precision_recall_curve": {"precision": precision.tolist(), "recall": recall.tolist()},
-            "calibration": {"predicted": predicted.tolist(), "observed": observed.tolist(), "status": "held-out diagnostic; no external calibration"},
-            "feature_importance": [{"feature": name, "value": float(value)} for name, value in zip(names, np.mean(coefficients, axis=0), strict=True)] if coefficients else [],
-            "importance_method": "mean fold standardized coefficient" if config["model_type"] == "logistic" else "mean fold impurity importance" if coefficients else "not provided for nonlinear SVM",
+            "calibration": {
+                "predicted": predicted.tolist(),
+                "observed": observed.tolist(),
+                "status": "held-out diagnostic; no external calibration",
+            },
+            "feature_importance": [
+                {"feature": name, "value": float(value)}
+                for name, value in zip(names, np.mean(coefficients, axis=0), strict=True)
+            ]
+            if coefficients
+            else [],
+            "importance_method": "mean fold standardized coefficient"
+            if config["model_type"] == "logistic"
+            else "mean fold impurity importance"
+            if coefficients
+            else "not provided for nonlinear SVM",
         }
         if output_dir is not None:
             fitted_models[key] = clone(pipeline).fit(features, y)
     dataset_hash = content_hash(records)
     experiment_id = "EXP-" + content_hash({"config": config, "dataset_hash": dataset_hash})[:12]
     result = {
-        "id": experiment_id, "name": config["name"], "status": "SUCCEEDED", "dataset_id": DATASET_ID,
-        "atlas_id": config["atlas_id"], "seed": config["seed"], "models": models, "folds": fold_records,
-        "synthetic": True, "config": config,
+        "id": experiment_id,
+        "name": config["name"],
+        "status": "SUCCEEDED",
+        "dataset_id": DATASET_ID,
+        "atlas_id": config["atlas_id"],
+        "seed": config["seed"],
+        "models": models,
+        "folds": fold_records,
+        "synthetic": True,
+        "config": config,
         "provenance": {
-            **provenance("grouped-abc-experiment-v1", records, config), "dataset_hash": dataset_hash,
-            "feature_version": FEATURE_VERSION, "synthetic": True,
+            **provenance("grouped-abc-experiment-v1", records, config),
+            "dataset_hash": dataset_hash,
+            "feature_version": FEATURE_VERSION,
+            "synthetic": True,
             "validation": "StratifiedGroupKFold by patient; same folds for A/B/C; all preprocessing fit inside each fold",
             "outcome_generator": "synthetic-logit-v1: sigmoid(0.4-.025(age-40)-.04(duration-12)+.65(fraction_sum-2.5)-5(loss-.07)-2(hub_damage)); Bernoulli seed=99001+patient_index",
             "claim": "Synthetic software benchmark only; no external or clinical validation",
@@ -238,10 +336,14 @@ def run_experiment(config: dict, output_dir: str | Path | None = None) -> dict:
         write_json(directory / "experiment.json", result)
         write_json(directory / "config.json", config)
         write_json(directory / "provenance.json", result["provenance"])
-        write_json(directory / "metrics.json", {key: value["metrics"] for key, value in models.items()})
+        write_json(
+            directory / "metrics.json", {key: value["metrics"] for key, value in models.items()}
+        )
         joblib.dump(fitted_models, directory / "models.joblib")
         with (directory / "predictions.csv").open("w", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=["model", "patient_id", "target", "probability", "fold"])
+            writer = csv.DictWriter(
+                handle, fieldnames=["model", "patient_id", "target", "probability", "fold"]
+            )
             writer.writeheader()
             for key, model in models.items():
                 writer.writerows({"model": key, **row} for row in model["predictions"])
@@ -258,22 +360,44 @@ def reproduce_experiment(path: str | Path, output_dir: str | Path | None = None)
     if not isinstance(stored, dict) or "config" not in stored or "models" not in stored:
         raise ValueError("Expected an exported experiment artifact")
     reproduced = run_experiment(stored["config"], output_dir)
-    old_science = {"models": stored["models"], "folds": stored["folds"], "dataset_hash": stored["provenance"]["dataset_hash"]}
-    new_science = {"models": reproduced["models"], "folds": reproduced["folds"], "dataset_hash": reproduced["provenance"]["dataset_hash"]}
-    reproduced["reproduction"] = {"source_id": stored["id"], "matches": content_hash(old_science) == content_hash(new_science), "comparison": "dataset hash, folds and scientific results; runtime/git metadata excluded"}
+    old_science = {
+        "models": stored["models"],
+        "folds": stored["folds"],
+        "dataset_hash": stored["provenance"]["dataset_hash"],
+    }
+    new_science = {
+        "models": reproduced["models"],
+        "folds": reproduced["folds"],
+        "dataset_hash": reproduced["provenance"]["dataset_hash"],
+    }
+    reproduced["reproduction"] = {
+        "source_id": stored["id"],
+        "matches": content_hash(old_science) == content_hash(new_science),
+        "comparison": "dataset hash, folds and scientific results; runtime/git metadata excluded",
+    }
     if output_dir is not None:
         write_json(Path(output_dir) / "experiment.json", reproduced)
     return reproduced
 
 
-def bootstrap_refits(pipeline: Pipeline, features: np.ndarray, targets: np.ndarray, query: np.ndarray, patient_ids: list[str], *, iterations: int = 64, seed: int = 2026) -> dict:
+def bootstrap_refits(
+    pipeline: Pipeline,
+    features: np.ndarray,
+    targets: np.ndarray,
+    query: np.ndarray,
+    patient_ids: list[str],
+    *,
+    iterations: int = 64,
+    seed: int = 2026,
+) -> dict:
     """Resample entire patient groups, refitting preprocessing and classifier each draw."""
     if iterations < 2 or len(patient_ids) != len(targets) or len(features) != len(targets):
         raise ValueError("Invalid bootstrap dimensions or iteration count")
     groups = np.asarray(patient_ids)
     unique = np.unique(groups)
     rng = np.random.default_rng(seed)
-    probabilities, draw_hashes = [], []
+    probabilities: list[float] = []
+    draw_hashes: list[str] = []
     attempts = 0
     while len(probabilities) < iterations and attempts < iterations * 5:
         attempts += 1
@@ -287,17 +411,27 @@ def bootstrap_refits(pipeline: Pipeline, features: np.ndarray, targets: np.ndarr
     if len(probabilities) != iterations:
         raise ValueError("Insufficient two-class patient bootstrap samples")
     return {
-        "lower": float(np.quantile(probabilities, 0.025)), "upper": float(np.quantile(probabilities, 0.975)),
-        "level": 0.95, "method": "patient-bootstrap percentile with complete model refits",
-        "iterations": iterations, "attempts": attempts, "seed": seed,
+        "lower": float(np.quantile(probabilities, 0.025)),
+        "upper": float(np.quantile(probabilities, 0.975)),
+        "level": 0.95,
+        "method": "patient-bootstrap percentile with complete model refits",
+        "iterations": iterations,
+        "attempts": attempts,
+        "seed": seed,
         "draw_hashes": draw_hashes,
     }
 
 
 def predict_scenario(connectome: dict, regions: list[dict], simulation: dict) -> dict:
     connectome = validate_connectome(connectome)
-    if not connectome["synthetic"] or connectome["dataset_id"] != DATASET_ID or connectome["atlas_id"] not in ("demo-64", "demo-96"):
-        raise ValueError("The demonstration predictor supports only the built-in synthetic dataset and atlases; imported research data has no compatible trained model")
+    if (
+        not connectome["synthetic"]
+        or connectome["dataset_id"] != DATASET_ID
+        or connectome["atlas_id"] not in ("demo-64", "demo-96")
+    ):
+        raise ValueError(
+            "The demonstration predictor supports only the built-in synthetic dataset and atlases; imported research data has no compatible trained model"
+        )
     patient_id = connectome["patient_id"]
     try:
         index = int(patient_id.removeprefix("DEMO-"))
@@ -309,10 +443,18 @@ def predict_scenario(connectome: dict, regions: list[dict], simulation: dict) ->
     regions = validate_regions(regions, [node["id"] for node in connectome["nodes"]])
     expected_config = simulation.get("provenance", {}).get("config", {})
     if expected_config.get("method") != "weighted" or expected_config.get("threshold") != 0.0:
-        raise ValueError("Synthetic prediction is trained for weighted resection with scientific threshold 0 only")
-    if expected_config.get("regions") != regions or simulation["provenance"].get("input_hash") != content_hash(connectome_identity(connectome)):
+        raise ValueError(
+            "Synthetic prediction is trained for weighted resection with scientific threshold 0 only"
+        )
+    if expected_config.get("regions") != regions or simulation["provenance"].get(
+        "input_hash"
+    ) != content_hash(connectome_identity(connectome)):
         raise ValueError("Simulation provenance does not match the patient and requested resection")
-    records = [record for record in synthetic_records(80, connectome["atlas_id"]) if record["patient_id"] != patient_id]
+    records = [
+        record
+        for record in synthetic_records(80, connectome["atlas_id"])
+        if record["patient_id"] != patient_id
+    ]
     validate_records(records)
     names = FEATURE_SETS["C"]
     features = np.array([[record["features"][name] for name in names] for record in records])
@@ -326,20 +468,52 @@ def predict_scenario(connectome: dict, regions: list[dict], simulation: dict) ->
     interval = bootstrap_refits(pipeline, features, targets, query, training_ids)
     transformed = fitted[:-1].transform(query)[0]
     coefficients = fitted.named_steps["classifier"].coef_[0]
-    contributions = [{"feature": name, "value": float(transformed[i] * coefficients[i]), "input_value": float(values[name])} for i, name in enumerate(names)]
+    contributions = [
+        {
+            "feature": name,
+            "value": float(transformed[i] * coefficients[i]),
+            "input_value": float(values[name]),
+        }
+        for i, name in enumerate(names)
+    ]
     return {
-        "probability": probability, "interval": interval,
-        "model": {"id": f"synthetic-logistic-{connectome['atlas_id']}-v1", "name": "Synthetic logistic research model", "version": MODEL_VERSION},
-        "feature_version": FEATURE_VERSION, "synthetic": True, "contributions": contributions,
+        "probability": probability,
+        "interval": interval,
+        "model": {
+            "id": f"synthetic-logistic-{connectome['atlas_id']}-v1",
+            "name": "Synthetic logistic research model",
+            "version": MODEL_VERSION,
+        },
+        "feature_version": FEATURE_VERSION,
+        "synthetic": True,
+        "contributions": contributions,
         "intercept": float(fitted.named_steps["classifier"].intercept_[0]),
         "provenance": {
-            **provenance("synthetic-scenario-prediction-v1", {"connectome": connectome_identity(connectome), "regions": regions, "training_hash": content_hash(records)}, {"model_version": MODEL_VERSION, "feature_version": FEATURE_VERSION, "bootstrap_iterations": 64, "seed": 2026}),
-            "patient_id": patient_id, "dataset_id": DATASET_ID, "atlas_id": connectome["atlas_id"],
-            "scenario_hash": content_hash(regions), "simulation_config_hash": simulation["provenance"]["config_hash"],
-            "training_patient_ids": training_ids, "excluded_patient_id": patient_id,
+            **provenance(
+                "synthetic-scenario-prediction-v1",
+                {
+                    "connectome": connectome_identity(connectome),
+                    "regions": regions,
+                    "training_hash": content_hash(records),
+                },
+                {
+                    "model_version": MODEL_VERSION,
+                    "feature_version": FEATURE_VERSION,
+                    "bootstrap_iterations": 64,
+                    "seed": 2026,
+                },
+            ),
+            "patient_id": patient_id,
+            "dataset_id": DATASET_ID,
+            "atlas_id": connectome["atlas_id"],
+            "scenario_hash": content_hash(regions),
+            "simulation_config_hash": simulation["provenance"]["config_hash"],
+            "training_patient_ids": training_ids,
+            "excluded_patient_id": patient_id,
             "explanation": "exact standardized linear log-odds contributions; not SHAP or causal effects",
             "calibration": "not externally calibrated or clinically validated",
             "interval_interpretation": "95% percentile variation of refitted model estimates; excludes outcome noise and deployment shift",
-            "research_only": True, "synthetic": True,
+            "research_only": True,
+            "synthetic": True,
         },
     }

@@ -89,7 +89,12 @@ def validate_connectome(connectome: Any) -> dict:
         if not isinstance(node, Mapping):
             raise ValueError("Each node must be an object")
         node_id = node.get("id")
-        if isinstance(node_id, bool) or not isinstance(node_id, int) or node_id < 0 or node_id in seen:
+        if (
+            isinstance(node_id, bool)
+            or not isinstance(node_id, int)
+            or node_id < 0
+            or node_id in seen
+        ):
             raise ValueError("Node IDs must be unique nonnegative integers")
         for key in ("name", "hemisphere", "network"):
             if not isinstance(node.get(key), str) or not node[key].strip():
@@ -106,7 +111,10 @@ def validate_connectome(connectome: Any) -> dict:
         raise ValueError("synthetic must be boolean")
     region_ids = [node["id"] for node in clean_nodes]
     return {
-        **connectome, "nodes": clean_nodes, "matrix": matrix.tolist(), "synthetic": synthetic,
+        **connectome,
+        "nodes": clean_nodes,
+        "matrix": matrix.tolist(),
+        "synthetic": synthetic,
         "actual_resection": validate_regions(connectome.get("actual_resection", []), region_ids),
         "edges": matrix_edges(matrix, region_ids),
     }

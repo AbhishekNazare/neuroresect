@@ -22,9 +22,24 @@ def test_json_and_csv_round_trip(tmp_path, line_connectome):
 
 def test_cli_simulation_and_error(tmp_path, line_connectome, capsys):
     input_path = export_connectome(line_connectome, tmp_path / "input.json")
-    regions_path = write_json(tmp_path / "regions.json", [{"region_id": 1, "fraction_removed": 0.5}])
+    regions_path = write_json(
+        tmp_path / "regions.json", [{"region_id": 1, "fraction_removed": 0.5}]
+    )
     output_path = tmp_path / "simulation.json"
-    assert main(["simulate", "--input", str(input_path), "--regions", str(regions_path), "--output", str(output_path)]) == 0
+    assert (
+        main(
+            [
+                "simulate",
+                "--input",
+                str(input_path),
+                "--regions",
+                str(regions_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
     assert read_json(output_path)["connectivity_loss"] > 0
     assert main(["inspect", "unknown"]) == 2
     assert "Unknown patient" in capsys.readouterr().err

@@ -29,14 +29,17 @@ def global_metrics(matrix) -> dict:
         modularity, clustering = 0.0, 0.0
     return {
         "efficiency": float(inverse.sum() / (n * (n - 1))),
-        "density": float(nx.density(graph)), "clustering": clustering,
-        "modularity": modularity, "components": len(components),
+        "density": float(nx.density(graph)),
+        "clustering": clustering,
+        "modularity": modularity,
+        "components": len(components),
         "largest_component_fraction": max(map(len, components)) / n,
         # Characteristic path length of the full graph is undefined if disconnected.
         "path_length": float(paths[off_diagonal].mean()) if len(components) == 1 else None,
         "reachable_path_length": float(paths[reachable].mean()) if reachable.any() else None,
         "edge_count": graph.number_of_edges(),
-        "total_weight": float(weights.sum() / 2), "node_count": n,
+        "total_weight": float(weights.sum() / 2),
+        "node_count": n,
     }
 
 
@@ -61,13 +64,20 @@ def node_metrics(matrix) -> list[dict]:
     participation = np.zeros(len(weights))
     for community in communities:
         community_strength = weights[:, sorted(community)].sum(axis=1)
-        share = np.divide(community_strength, strengths, out=np.zeros_like(strengths), where=strengths > 0)
+        share = np.divide(
+            community_strength, strengths, out=np.zeros_like(strengths), where=strengths > 0
+        )
         participation += share**2
     participation = np.where(strengths > 0, np.maximum(0, 1 - participation), 0)
     return [
-        {"strength": float(strength), "degree": int(np.count_nonzero(weights[i])),
-         "is_hub": bool(strength > cutoff and strength > 0),
-         "betweenness": float(betweenness[i]), "closeness": float(closeness[i]),
-         "eigenvector": eigenvector[i], "participation_coefficient": float(participation[i])}
+        {
+            "strength": float(strength),
+            "degree": int(np.count_nonzero(weights[i])),
+            "is_hub": bool(strength > cutoff and strength > 0),
+            "betweenness": float(betweenness[i]),
+            "closeness": float(closeness[i]),
+            "eigenvector": eigenvector[i],
+            "participation_coefficient": float(participation[i]),
+        }
         for i, strength in enumerate(strengths)
     ]

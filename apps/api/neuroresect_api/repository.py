@@ -4,9 +4,10 @@ import hashlib
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 
 from .database import (
@@ -103,7 +104,9 @@ class Repository:
                     )
                 )
         except IntegrityError as exc:
-            raise APIError(409, "CONNECTOME_EXISTS", "This patient/atlas pair already exists.") from exc
+            raise APIError(
+                409, "CONNECTOME_EXISTS", "This patient/atlas pair already exists."
+            ) from exc
 
     def result(self, scenario_id: str, kind: str) -> dict[str, Any] | None:
         with self.database.sessions() as session:
@@ -198,9 +201,10 @@ class Repository:
                 .where(JobRecord.id == job_id, JobRecord.status == "QUEUED")
                 .values(status="RUNNING", progress=10, stage="LOADING_INPUTS", updated_at=utcnow())
             )
-            if result.rowcount != 1:
+            if cast(CursorResult, result).rowcount != 1:
                 return None
             row = session.get(JobRecord, job_id)
+            assert row is not None
             return {"kind": row.kind, "scenario_id": row.scenario_id, "payload": row.payload}
 
     def progress(self, job_id: str, percent: int, stage: str) -> None:
@@ -218,13 +222,18 @@ class Repository:
                 update(JobRecord)
                 .where(JobRecord.id == job_id, JobRecord.status == "RUNNING")
                 .values(
-                    status="SUCCEEDED", progress=100, stage="COMPLETE", result=result,
-                    error=None, updated_at=utcnow(),
+                    status="SUCCEEDED",
+                    progress=100,
+                    stage="COMPLETE",
+                    result=result,
+                    error=None,
+                    updated_at=utcnow(),
                 )
             )
-            if transition.rowcount != 1:
+            if cast(CursorResult, transition).rowcount != 1:
                 return
             job = session.get(JobRecord, job_id)
+            assert job is not None
             if job.kind == "experiment":
                 session.merge(ExperimentRecord(id=result["id"], payload=result))
             else:
@@ -238,7 +247,9 @@ class Repository:
                 update(JobRecord)
                 .where(JobRecord.id == job_id, JobRecord.status.in_(["QUEUED", "RUNNING"]))
                 .values(
-                    status="FAILED", stage="FAILED", updated_at=utcnow(),
+                    status="FAILED",
+                    stage="FAILED",
+                    updated_at=utcnow(),
                     error={"code": code, "message": message, "details": {}},
                 )
             )
@@ -252,7 +263,9 @@ class Repository:
                     JobRecord.status.in_(["QUEUED", "RUNNING"]),
                 )
                 .values(
-                    status="FAILED", stage="INTERRUPTED", updated_at=utcnow(),
+                    status="FAILED",
+                    stage="INTERRUPTED",
+                    updated_at=utcnow(),
                     error={
                         "code": "JOB_INTERRUPTED",
                         "message": "The local executor restarted. Submit a new job to retry.",
@@ -260,4 +273,4 @@ class Repository:
                     },
                 )
             )
-            return result.rowcount
+            return cast(CursorResult, result).rowcount

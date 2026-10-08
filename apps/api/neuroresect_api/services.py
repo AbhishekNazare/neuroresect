@@ -72,7 +72,9 @@ class ResearchService:
         unknown = sorted(set(region_ids) - {node["id"] for node in connectome["nodes"]})
         if unknown:
             raise APIError(
-                422, "INVALID_RESECTION", "Region IDs are absent from this atlas.",
+                422,
+                "INVALID_RESECTION",
+                "Region IDs are absent from this atlas.",
                 {"unknown_region_ids": unknown},
             )
 
@@ -90,15 +92,16 @@ class ResearchService:
             other = existing["connectome"]
             if other["atlas_id"] == request.atlas_id and other["nodes"] != connectome["nodes"]:
                 raise APIError(
-                    409, "ATLAS_DEFINITION_CONFLICT",
+                    409,
+                    "ATLAS_DEFINITION_CONFLICT",
                     "This atlas ID already has different region definitions or coordinates.",
                 )
             if other["patient_id"] == request.patient_id and (
-                other["dataset_id"] != request.dataset_id
-                or other["synthetic"] != request.synthetic
+                other["dataset_id"] != request.dataset_id or other["synthetic"] != request.synthetic
             ):
                 raise APIError(
-                    409, "PATIENT_METADATA_CONFLICT",
+                    409,
+                    "PATIENT_METADATA_CONFLICT",
                     "Patient dataset and synthetic status must match the existing import.",
                 )
         checksum = stable_hash(connectome)

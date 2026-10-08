@@ -1,0 +1,70 @@
+name: neuroresect
+services:
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+      args:
+        NEURORESECT_GIT_COMMIT: ${NEURORESECT_GIT_COMMIT:-unavailable}
+    ports: ["127.0.0.1:8000:8000"]
+    environment: &api-environment
+      DATABASE_URL: postgresql+psycopg://neuroresect:${POSTGRES_PASSWORD:-neuroresect-local-only}@postgres:5432/neuroresect
+      JOB_EXECUTOR: celery
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+      args:
+        NEURORESECT_GIT_COMMIT: ${NEURORESECT_GIT_COMMIT:-unavailable}
+    command: ["celery", "-A", "workers.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
+    environment: *api-environment
+    depends_on:
+      api:
+        condition: service_healthy
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: neuroresect
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-neuroresect-local-only}
+      POSTGRES_DB: neuroresect
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neuroresect"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  postgres-data:
+  redis-data:

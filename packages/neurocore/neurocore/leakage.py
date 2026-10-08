@@ -12,7 +12,9 @@ def validate_feature_names(names: Sequence[str]) -> None:
     allowed = set(FEATURE_SETS["C"])
     unknown = sorted(set(names) - allowed)
     if unknown:
-        raise ValueError(f"DATA_LEAKAGE_DETECTED: unapproved or outcome-derived features: {unknown}")
+        raise ValueError(
+            f"DATA_LEAKAGE_DETECTED: unapproved or outcome-derived features: {unknown}"
+        )
     if len(names) != len(set(names)):
         raise ValueError("DATA_LEAKAGE_DETECTED: duplicate feature names")
 
@@ -24,7 +26,10 @@ def assert_disjoint_patients(train_ids, validation_ids, test_ids=()) -> None:
 
 
 def validate_records(records: Sequence[dict]) -> None:
-    seen_records, seen_features, scan_owner, patient_targets = set(), set(), {}, {}
+    seen_records: set[str] = set()
+    seen_features: set[str] = set()
+    scan_owner: dict[str, str] = {}
+    patient_targets: dict[str, int] = {}
     if not records:
         raise ValueError("Training records must not be empty")
     for record in records:
@@ -55,7 +60,9 @@ def validate_records(records: Sequence[dict]) -> None:
 
 
 def validate_split_records(train_records: Sequence[dict], test_records: Sequence[dict]) -> None:
-    assert_disjoint_patients([r["patient_id"] for r in train_records], [r["patient_id"] for r in test_records])
+    assert_disjoint_patients(
+        [r["patient_id"] for r in train_records], [r["patient_id"] for r in test_records]
+    )
     for key in ("scan_id", "record_id"):
         if {record[key] for record in train_records} & {record[key] for record in test_records}:
             raise ValueError(f"DATA_LEAKAGE_DETECTED: shared {key} across splits")

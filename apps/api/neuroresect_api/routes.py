@@ -44,7 +44,11 @@ def connectome(
     include_matrix: bool = False,
 ):
     result = request.app.state.service.connectome(patient_id, atlas_id)
-    return result if include_matrix else {key: value for key, value in result.items() if key != "matrix"}
+    return (
+        result
+        if include_matrix
+        else {key: value for key, value in result.items() if key != "matrix"}
+    )
 
 
 @router.get("/scenarios", tags=["scenarios"])
@@ -59,7 +63,9 @@ def create_scenario(request: Request, body: ScenarioCreate):
     return request.app.state.service.create_scenario(body)
 
 
-def submit_scenario_job(request: Request, scenario_id: str, kind: str, key: str | None, payload=None):
+def submit_scenario_job(
+    request: Request, scenario_id: str, kind: str, key: str | None, payload=None
+):
     request.app.state.repository.scenario(scenario_id)
     return request.app.state.dispatcher.submit(kind, scenario_id, payload or {}, key)
 
@@ -74,7 +80,9 @@ def simulation(request: Request, scenario_id: Identifier):
     request.app.state.repository.scenario(scenario_id)
     result = request.app.state.repository.result(scenario_id, "simulation")
     if result is None:
-        raise APIError(404, "SIMULATION_NOT_FOUND", "No completed simulation exists for this scenario.")
+        raise APIError(
+            404, "SIMULATION_NOT_FOUND", "No completed simulation exists for this scenario."
+        )
     return result
 
 
@@ -83,12 +91,16 @@ def predict(request: Request, scenario_id: Identifier, idempotency_key: Idempote
     scenario = request.app.state.repository.scenario(scenario_id)
     if scenario["method"] != "weighted":
         raise APIError(
-            422, "MODEL_INCOMPATIBLE",
+            422,
+            "MODEL_INCOMPATIBLE",
             "The available outcome model supports weighted resection scenarios only.",
         )
-    if request.app.state.repository.imported_connectome(scenario["patient_id"], scenario["atlas_id"]):
+    if request.app.state.repository.imported_connectome(
+        scenario["patient_id"], scenario["atlas_id"]
+    ):
         raise APIError(
-            422, "MODEL_INCOMPATIBLE",
+            422,
+            "MODEL_INCOMPATIBLE",
             "The available outcome model is trained on synthetic demo data and cannot score imports.",
         )
     return submit_scenario_job(request, scenario_id, "prediction", idempotency_key)
@@ -109,12 +121,15 @@ def counterfactuals(
     scenario = request.app.state.repository.scenario(scenario_id)
     if scenario["method"] != "weighted":
         raise APIError(
-            422, "UNSUPPORTED_RESECTION_METHOD",
+            422,
+            "UNSUPPORTED_RESECTION_METHOD",
             "Counterfactual search currently supports weighted resection scenarios only.",
         )
     connectome = request.app.state.service.connectome(scenario["patient_id"], scenario["atlas_id"])
     request.app.state.service.validate_region_ids(connectome, body.protected_regions)
-    return submit_scenario_job(request, scenario_id, "counterfactuals", idempotency_key, body.model_dump())
+    return submit_scenario_job(
+        request, scenario_id, "counterfactuals", idempotency_key, body.model_dump()
+    )
 
 
 @router.get("/scenarios/{scenario_id}/export", tags=["exports"])
@@ -137,12 +152,18 @@ def experiments(request: Request):
 
 
 @router.post("/experiments", status_code=202, tags=["experiments"])
-def create_experiment(request: Request, body: ExperimentCreate, idempotency_key: IdempotencyKey = None):
+def create_experiment(
+    request: Request, body: ExperimentCreate, idempotency_key: IdempotencyKey = None
+):
     from neurocore.demo import list_atlases
 
     if body.atlas_id not in {atlas["id"] for atlas in list_atlases()}:
-        raise APIError(422, "ATLAS_NOT_SUPPORTED", "Experiments currently require a synthetic demo atlas.")
-    return request.app.state.dispatcher.submit("experiment", None, body.model_dump(), idempotency_key)
+        raise APIError(
+            422, "ATLAS_NOT_SUPPORTED", "Experiments currently require a synthetic demo atlas."
+        )
+    return request.app.state.dispatcher.submit(
+        "experiment", None, body.model_dump(), idempotency_key
+    )
 
 
 @router.get("/experiments/{experiment_id}", tags=["experiments"])
