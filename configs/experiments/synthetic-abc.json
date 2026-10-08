@@ -1,0 +1,8 @@
+{
+  "name": "Synthetic network-disruption benchmark",
+  "seed": 42,
+  "folds": 3,
+  "n_patients": 36,
+  "model_type": "logistic",
+  "atlas_id": "demo-64"
+}

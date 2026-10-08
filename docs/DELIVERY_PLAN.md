@@ -6,12 +6,12 @@ This plan implements the HLD/LLD as a runnable research prototype. Original desi
 | --- | --- | --- | --- |
 | 01 | `feat/research-foundations` | Research foundations: architecture, contracts, and delivery roadmap | Installable monorepo, documented scientific conventions and API contracts |
 | 02 | `feat/connectome-engine` | Inside the connectome: deterministic virtual resection engine | Validated matrices; weighted/binary resection; graph metrics; sensitivity; constrained search; scientific tests |
-| 03 | `feat/research-api` | From scenario to evidence: persistent research API | Patients, atlases, scenarios, async jobs, simulation, provenance, imports, exports; API integration tests |
-| 04 | `feat/outcome-experiments` | Evidence with uncertainty: patient-separated outcome experiments | A/B/C comparisons, grouped validation, fold-local preprocessing, bootstrap intervals, artifact export; leakage tests |
+| 03 | `feat/outcome-experiments` | Evidence with uncertainty: patient-separated outcome experiments | A/B/C comparisons, grouped validation, fold-local preprocessing, bootstrap intervals, artifact export; leakage tests |
+| 04 | `feat/research-api` | From scenario to evidence: persistent research API | Patients, atlases, scenarios, async jobs, simulation, provenance, imports, exports; API integration tests |
 | 05 | `feat/brain-workstation` | Explore the living network: interactive 3D research workstation | Interactive regions and edges, resection editor, before/after, comparison, sensitivity, experiments, provenance; responsive and accessible UI |
 | 06 | `feat/release-toolkit` | Ready for discovery: reproducible launch, CI, and illustrated field guide | Docker and local setup, CI, end-to-end checks, diagrams, screenshots, scientific limitations, polished README |
 
-Each phase receives focused conventional commits. PRs include behavior, scientific assumptions, verification, and known limitations. Dependent PRs are stacked if they are left open for review. Merging is subject to the user's workflow preference; no force pushes or fabricated backdated history.
+Each phase receives focused conventional commits. PRs include behavior, scientific assumptions, verification, and known limitations. Dependent PRs are stacked if they are left open for review. The user authorized merging each verified phase into main. Preserve merge commits and feature branches; no force pushes or fabricated backdated history.
 
 ## Release boundary
 
