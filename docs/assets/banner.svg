@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="460" viewBox="0 0 1440 460" role="img" aria-labelledby="title desc">
+  <title id="title">NeuroResect — explore the network, understand the change</title>
+  <desc id="desc">A dark teal research platform banner with an abstract connected brain network.</desc>
+  <defs>
+    <linearGradient id="bg"><stop stop-color="#0a1118"/><stop offset="1" stop-color="#101f28"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#5edacc" stop-opacity=".17"/><stop offset="1" stop-color="#5edacc" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="38" height="38" patternUnits="userSpaceOnUse"><path d="M38 0H0V38" fill="none" stroke="#8ce3d5" stroke-opacity=".035"/></pattern>
+  </defs>
+  <rect width="1440" height="460" rx="24" fill="url(#bg)"/>
+  <rect width="1440" height="460" rx="24" fill="url(#grid)"/>
+  <ellipse cx="1100" cy="220" rx="370" ry="290" fill="url(#glow)"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="78" y="87" fill="#72deca" font-size="13" letter-spacing="4">A RESEARCH WORKSTATION FOR BRAIN NETWORKS</text>
+    <text x="74" y="190" fill="#eef7f5" font-size="76" font-weight="700" letter-spacing="-3">NeuroResect<tspan fill="#70ddc9">.</tspan></text>
+    <text x="78" y="246" fill="#b8cbc9" font-size="25">Explore the network. Understand the change.</text>
+    <text x="78" y="309" fill="#809a9c" font-size="17">Virtual resection · 3D connectomes · Reproducible experiments</text>
+    <rect x="78" y="352" width="267" height="34" rx="17" fill="#6ce0c6" fill-opacity=".09" stroke="#6ce0c6" stroke-opacity=".25"/>
+    <text x="96" y="374" fill="#73d7c5" font-size="12" letter-spacing="1">SYNTHETIC DEMO · RESEARCH ONLY</text>
+  </g>
+  <g stroke="#69d4c5" stroke-opacity=".30" fill="none">
+    <path d="M1083 72C1010 48 933 77 910 129C853 162 859 225 891 254C883 318 934 368 1001 357C1023 386 1063 378 1084 353Z" stroke-width="2"/>
+    <path d="M1113 72C1186 48 1263 77 1286 129C1343 162 1337 225 1305 254C1313 318 1262 368 1195 357C1173 386 1133 378 1112 353Z" stroke-width="2"/>
+    <path d="M1083 92L983 101L942 150L1018 173L902 205L968 247L913 293L1001 331L1048 285L1046 221L1018 173L1071 132M983 101L1018 173L968 247L1001 331M942 150L1046 221L913 293M1113 92L1213 101L1254 150L1178 173L1294 205L1228 247L1283 293L1195 331L1148 285L1150 221L1178 173L1125 132M1213 101L1178 173L1228 247L1195 331M1254 150L1150 221L1283 293M1018 173L1178 173M1046 221L1150 221M1048 285L1148 285M968 247L1228 247"/>
+  </g>
+  <g fill="#6bd7c4">
+    <circle cx="983" cy="101" r="5"/><circle cx="942" cy="150" r="4"/><circle cx="1018" cy="173" r="7"/><circle cx="902" cy="205" r="5"/><circle cx="968" cy="247" r="6"/><circle cx="1001" cy="331" r="5"/><circle cx="1048" cy="285" r="4"/><circle cx="1046" cy="221" r="5"/><circle cx="1071" cy="132" r="4"/>
+    <circle cx="1213" cy="101" r="5"/><circle cx="1254" cy="150" r="4"/><circle cx="1178" cy="173" r="7"/><circle cx="1294" cy="205" r="5"/><circle cx="1228" cy="247" r="6"/><circle cx="1195" cy="331" r="5"/><circle cx="1148" cy="285" r="4"/><circle cx="1150" cy="221" r="5"/><circle cx="1125" cy="132" r="4"/>
+  </g>
+  <g fill="#e5ab70" stroke="#e5ab70"><circle cx="913" cy="293" r="7"/><circle cx="913" cy="293" r="18" fill="none" stroke-opacity=".25"/><path d="M913 293L968 247M913 293L1001 331" stroke-width="2"/></g>
+</svg>
