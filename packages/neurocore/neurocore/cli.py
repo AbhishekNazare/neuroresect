@@ -33,6 +33,12 @@ def parser() -> argparse.ArgumentParser:
     dataset.add_argument("path")
     dataset.add_argument("--metadata")
     dataset.add_argument("--output", required=True)
+    experiment = commands.add_parser("experiment", help="Run a patient-separated A/B/C study")
+    experiment.add_argument("config", help="JSON experiment configuration")
+    experiment.add_argument("--output", required=True, help="Artifact directory")
+    reproduce = commands.add_parser("reproduce", help="Reproduce and compare an exported experiment")
+    reproduce.add_argument("artifact")
+    reproduce.add_argument("--output", required=True, help="Artifact directory")
     return root
 
 
@@ -49,6 +55,15 @@ def main(argv: list[str] | None = None) -> int:
             result = import_connectome(args.path, args.metadata)
             export_connectome(result, args.output)
             result = {"status": "validated", "output": args.output, "regions": len(result["nodes"])}
+        elif args.command in ("experiment", "reproduce"):
+            from neurocore.experiments import reproduce_experiment, run_experiment
+            if args.command == "experiment":
+                result = run_experiment(read_json(args.config), args.output)
+            else:
+                result = reproduce_experiment(args.artifact, args.output)
+            print(json.dumps({"id": result["id"], "output": args.output,
+                              "reproduction": result.get("reproduction")}, indent=2))
+            return 2 if result.get("reproduction", {}).get("matches") is False else 0
         else:
             connectome = import_connectome(args.input) if args.input else get_connectome(args.patient, args.atlas)
             regions = read_json(args.regions) if args.regions else connectome["actual_resection"]
