@@ -115,12 +115,16 @@ class JobDispatcher:
             from celery import Celery
 
             self.celery = Celery(
-                "neuroresect", broker=settings.celery_broker_url,
+                "neuroresect",
+                broker=settings.celery_broker_url,
                 backend=settings.celery_result_backend,
             )
             self.celery.conf.update(
-                task_serializer="json", accept_content=["json"], result_serializer="json",
-                broker_connection_timeout=3, task_publish_retry=False,
+                task_serializer="json",
+                accept_content=["json"],
+                result_serializer="json",
+                broker_connection_timeout=3,
+                task_publish_retry=False,
             )
 
     def submit(
@@ -134,10 +138,12 @@ class JobDispatcher:
                 if self.pool is not None:
                     self.pool.submit(self.runner.execute, job["id"])
                 else:
+                    assert self.celery is not None
                     self.celery.send_task("neuroresect.execute_job", args=[job["id"]])
             except Exception:
                 self.repository.fail(
-                    job["id"], "DISPATCH_FAILED",
+                    job["id"],
+                    "DISPATCH_FAILED",
                     "The worker queue is unavailable. Submit a new job to retry.",
                 )
                 return self.repository.job(job["id"])

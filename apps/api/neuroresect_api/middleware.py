@@ -28,7 +28,8 @@ class RequestMiddleware:
             if message["type"] == "http.response.start":
                 status = message["status"]
                 message["headers"] = [
-                    *message.get("headers", []), (b"x-request-id", request_id.encode())
+                    *message.get("headers", []),
+                    (b"x-request-id", request_id.encode()),
                 ]
             await send(message)
 
@@ -51,7 +52,9 @@ class RequestMiddleware:
                     await reject(400, "INVALID_CONTENT_LENGTH", "Invalid Content-Length header.")
                     return
                 if declared > self.max_request_bytes:
-                    await reject(413, "REQUEST_TOO_LARGE", "Request exceeds the configured size limit.")
+                    await reject(
+                        413, "REQUEST_TOO_LARGE", "Request exceeds the configured size limit."
+                    )
                     return
             body = bytearray()
             while True:
@@ -60,7 +63,9 @@ class RequestMiddleware:
                     return
                 body.extend(message.get("body", b""))
                 if len(body) > self.max_request_bytes:
-                    await reject(413, "REQUEST_TOO_LARGE", "Request exceeds the configured size limit.")
+                    await reject(
+                        413, "REQUEST_TOO_LARGE", "Request exceeds the configured size limit."
+                    )
                     return
                 if not message.get("more_body", False):
                     break
@@ -79,8 +84,10 @@ class RequestMiddleware:
             logger.info(
                 json.dumps(
                     {
-                        "event": "http_request", "request_id": request_id,
-                        "method": scope["method"], "route": getattr(route, "path", "unmatched"),
+                        "event": "http_request",
+                        "request_id": request_id,
+                        "method": scope["method"],
+                        "route": getattr(route, "path", "unmatched"),
                         "status": status,
                         "duration_ms": round((time.monotonic() - started) * 1000, 2),
                     }

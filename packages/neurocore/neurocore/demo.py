@@ -15,24 +15,60 @@ import numpy as np
 from neurocore.validation import matrix_edges
 
 DATASET_ID = "synthetic-dwi-v1"
-NETWORKS = ["default-mode", "frontoparietal", "limbic", "somatomotor", "dorsal-attention", "ventral-attention", "visual"]
+NETWORKS = [
+    "default-mode",
+    "frontoparietal",
+    "limbic",
+    "somatomotor",
+    "dorsal-attention",
+    "ventral-attention",
+    "visual",
+]
 REGION_NAMES = [
-    "Superior frontal", "Middle frontal", "Inferior frontal", "Orbitofrontal",
-    "Anterior cingulate", "Precentral", "Postcentral", "Superior parietal",
-    "Inferior parietal", "Supramarginal", "Angular", "Precuneus",
-    "Posterior cingulate", "Superior temporal", "Middle temporal", "Inferior temporal",
-    "Temporal pole", "Entorhinal", "Parahippocampal", "Fusiform",
-    "Lateral occipital", "Cuneus", "Lingual", "Pericalcarine",
-    "Insula", "Hippocampal", "Amygdalar", "Thalamic",
-    "Caudate", "Putamen", "Pallidal", "Accumbens",
+    "Superior frontal",
+    "Middle frontal",
+    "Inferior frontal",
+    "Orbitofrontal",
+    "Anterior cingulate",
+    "Precentral",
+    "Postcentral",
+    "Superior parietal",
+    "Inferior parietal",
+    "Supramarginal",
+    "Angular",
+    "Precuneus",
+    "Posterior cingulate",
+    "Superior temporal",
+    "Middle temporal",
+    "Inferior temporal",
+    "Temporal pole",
+    "Entorhinal",
+    "Parahippocampal",
+    "Fusiform",
+    "Lateral occipital",
+    "Cuneus",
+    "Lingual",
+    "Pericalcarine",
+    "Insula",
+    "Hippocampal",
+    "Amygdalar",
+    "Thalamic",
+    "Caudate",
+    "Putamen",
+    "Pallidal",
+    "Accumbens",
 ]
 
 
 def list_atlases() -> list[dict]:
     return [
-        {"id": f"demo-{count}", "name": f"Illustrative {count}", "region_count": count,
-         "synthetic": True,
-         "description": "Synthetic bilateral ellipsoid; illustrative region labels, not a registered clinical atlas."}
+        {
+            "id": f"demo-{count}",
+            "name": f"Illustrative {count}",
+            "region_count": count,
+            "synthetic": True,
+            "description": "Synthetic bilateral ellipsoid; illustrative region labels, not a registered clinical atlas.",
+        }
         for count in (64, 96)
     ]
 
@@ -42,7 +78,7 @@ def _atlas_nodes(atlas_id: str) -> list[dict]:
     if atlas_id not in ("demo-64", "demo-96"):
         raise ValueError(f"Unknown atlas: {atlas_id}")
     half = int(atlas_id.split("-")[1]) // 2
-    nodes = []
+    nodes: list[dict] = []
     # Fibonacci sampling on each lateral hemisphere avoids longitude clustering.
     for hemisphere, sign in (("L", -1), ("R", 1)):
         for index in range(half):
@@ -51,15 +87,29 @@ def _atlas_nodes(atlas_id: str) -> list[dict]:
             radius = np.sqrt(1 - lateral**2)
             y = 1.30 * radius * np.cos(angle)
             z = 0.90 * radius * np.sin(angle)
-            network = ("visual" if y < -0.60 else "frontoparietal" if y > 0.55
-                       else "somatomotor" if z > 0.35 else "limbic" if z < -0.40
-                       else NETWORKS[index % len(NETWORKS)])
+            network = (
+                "visual"
+                if y < -0.60
+                else "frontoparietal"
+                if y > 0.55
+                else "somatomotor"
+                if z > 0.35
+                else "limbic"
+                if z < -0.40
+                else NETWORKS[index % len(NETWORKS)]
+            )
             suffix = f" · parcel {index // 32 + 1}" if index >= 32 else ""
-            nodes.append({
-                "id": len(nodes), "name": f"{hemisphere} {REGION_NAMES[index % 32]}{suffix}",
-                "hemisphere": hemisphere, "network": network,
-                "x": float(sign * lateral), "y": float(y), "z": float(z),
-            })
+            nodes.append(
+                {
+                    "id": len(nodes),
+                    "name": f"{hemisphere} {REGION_NAMES[index % 32]}{suffix}",
+                    "hemisphere": hemisphere,
+                    "network": network,
+                    "x": float(sign * lateral),
+                    "y": float(y),
+                    "z": float(z),
+                }
+            )
     return nodes
 
 
@@ -71,10 +121,15 @@ def synthetic_patient(index: int) -> dict:
     rng = np.random.default_rng(1701 + index)
     age = int(rng.integers(19, 65))
     return {
-        "id": f"DEMO-{index:03d}", "dataset_id": DATASET_ID,
-        "label": f"Synthetic participant {index:03d}", "age": age,
-        "sex": "F" if index % 2 else "M", "epilepsy_duration": int(rng.integers(2, min(age - 5, 29))),
-        "modalities": ["DWI"], "available_atlases": ["demo-64", "demo-96"], "synthetic": True,
+        "id": f"DEMO-{index:03d}",
+        "dataset_id": DATASET_ID,
+        "label": f"Synthetic participant {index:03d}",
+        "age": age,
+        "sex": "F" if index % 2 else "M",
+        "epilepsy_duration": int(rng.integers(2, min(age - 5, 29))),
+        "modalities": ["DWI"],
+        "available_atlases": ["demo-64", "demo-96"],
+        "synthetic": True,
     }
 
 
@@ -86,7 +141,9 @@ def list_patients() -> list[dict]:
 def _synthetic_connectome(index: int, atlas_id: str) -> dict:
     nodes = _atlas_nodes(atlas_id)
     n = len(nodes)
-    seed = int.from_bytes(hashlib.sha256(f"synthetic-dwi-v1:{index}:{atlas_id}".encode()).digest()[:8], "little")
+    seed = int.from_bytes(
+        hashlib.sha256(f"synthetic-dwi-v1:{index}:{atlas_id}".encode()).digest()[:8], "little"
+    )
     rng = np.random.default_rng(seed)
     xyz = np.array([[node[axis] for axis in ("x", "y", "z")] for node in nodes])
     distances = np.linalg.norm(xyz[:, None] - xyz[None, :], axis=2)
@@ -110,12 +167,17 @@ def _synthetic_connectome(index: int, atlas_id: str) -> dict:
     targets = [side + target for target in (13, 14, 16, 17, 18, 25)]
     resection = [
         {"region_id": target, "fraction_removed": round(float(rng.uniform(0.25, 0.95)), 2)}
-        for target in targets[:int(rng.integers(3, 7))]
+        for target in targets[: int(rng.integers(3, 7))]
     ]
     return {
-        "patient_id": f"DEMO-{index:03d}", "dataset_id": DATASET_ID, "atlas_id": atlas_id,
-        "synthetic": True, "nodes": nodes, "matrix": weights.tolist(),
-        "edges": matrix_edges(weights, [node["id"] for node in nodes]), "actual_resection": resection,
+        "patient_id": f"DEMO-{index:03d}",
+        "dataset_id": DATASET_ID,
+        "atlas_id": atlas_id,
+        "synthetic": True,
+        "nodes": nodes,
+        "matrix": weights.tolist(),
+        "edges": matrix_edges(weights, [node["id"] for node in nodes]),
+        "actual_resection": resection,
         "coordinate_system": "Illustrative normalized RAS: +x right, +y anterior, +z superior",
         "weight_units": "arbitrary synthetic structural strength",
     }

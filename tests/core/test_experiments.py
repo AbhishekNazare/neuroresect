@@ -34,7 +34,13 @@ def test_grouped_experiment_reproducible_and_exports(tmp_path):
 
 def test_preprocessing_never_sees_held_out_extreme():
     features = np.array([[0.0], [1.0], [2.0], [3.0], [9999.0]])
-    fitted, _ = fit_fold(make_pipeline("logistic", 42), features, np.array([0, 1, 0, 1, 0]), np.arange(4), np.array([4]))
+    fitted, _ = fit_fold(
+        make_pipeline("logistic", 42),
+        features,
+        np.array([0, 1, 0, 1, 0]),
+        np.arange(4),
+        np.array([4]),
+    )
     assert fitted.named_steps["scaler"].mean_[0] == pytest.approx(1.5)
 
 

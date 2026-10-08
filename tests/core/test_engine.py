@@ -34,7 +34,13 @@ def test_node_centralities_on_line_and_empty_graph(line_connectome):
     assert nodes[1]["closeness"] == pytest.approx(3 / 4)
     assert nodes[0]["eigenvector"] < nodes[1]["eigenvector"]
     for node in node_metrics(np.zeros((4, 4))):
-        assert node["betweenness"] == node["closeness"] == node["eigenvector"] == node["participation_coefficient"] == 0
+        assert (
+            node["betweenness"]
+            == node["closeness"]
+            == node["eigenvector"]
+            == node["participation_coefficient"]
+            == 0
+        )
     disconnected = node_metrics([[0, 1, 0], [1, 0, 0], [0, 0, 0]])
     assert disconnected[2]["closeness"] == 0
     assert all(0 <= node["participation_coefficient"] <= 1 for node in nodes)
@@ -78,21 +84,35 @@ def test_total_removal_and_empty_graph_are_json_safe(line_connectome):
     json.dumps(result, allow_nan=False)
 
 
-@pytest.mark.parametrize("matrix", [
-    [[0, 1, 2], [1, 0, 1]], [[0, -1], [-1, 0]], [[0, float("nan")], [float("nan"), 0]],
-    [[0, float("inf")], [float("inf"), 0]], [[0, 1], [2, 0]], [[1, 0], [0, 0]], [[0]],
-])
+@pytest.mark.parametrize(
+    "matrix",
+    [
+        [[0, 1, 2], [1, 0, 1]],
+        [[0, -1], [-1, 0]],
+        [[0, float("nan")], [float("nan"), 0]],
+        [[0, float("inf")], [float("inf"), 0]],
+        [[0, 1], [2, 0]],
+        [[1, 0], [0, 0]],
+        [[0]],
+    ],
+)
 def test_invalid_matrices_rejected(matrix):
     with pytest.raises(ValueError):
         validate_matrix(matrix)
 
 
-@pytest.mark.parametrize("regions", [
-    [{"region_id": 99, "fraction_removed": 0.5}], [{"region_id": True, "fraction_removed": 0.5}],
-    [{"region_id": 1, "fraction_removed": -0.01}], [{"region_id": 1, "fraction_removed": 1.01}],
-    [{"region_id": 1, "fraction_removed": float("nan")}], [{"region_id": 1, "fraction_removed": True}],
-    [{"region_id": 1, "fraction_removed": 0.3}, {"region_id": 1, "fraction_removed": 0.4}],
-])
+@pytest.mark.parametrize(
+    "regions",
+    [
+        [{"region_id": 99, "fraction_removed": 0.5}],
+        [{"region_id": True, "fraction_removed": 0.5}],
+        [{"region_id": 1, "fraction_removed": -0.01}],
+        [{"region_id": 1, "fraction_removed": 1.01}],
+        [{"region_id": 1, "fraction_removed": float("nan")}],
+        [{"region_id": 1, "fraction_removed": True}],
+        [{"region_id": 1, "fraction_removed": 0.3}, {"region_id": 1, "fraction_removed": 0.4}],
+    ],
+)
 def test_invalid_regions_rejected(line_connectome, regions):
     with pytest.raises(ValueError):
         simulate(line_connectome, regions)
@@ -116,7 +136,13 @@ def test_threshold_strategies_and_scientific_threshold(line_connectome):
     assert np.count_nonzero(threshold_matrix(matrix, "density", 1 / 3)) == 2
     assert np.count_nonzero(threshold_matrix(matrix, "top_k", 1)) == 4  # symmetric union
     assert simulate(line_connectome, [], threshold=1)["baseline"]["edge_count"] == 0
-    for strategy, value in [("percentile", 101), ("density", -0.1), ("top_k", 1.5), ("absolute", -1), ("unknown", 0)]:
+    for strategy, value in [
+        ("percentile", 101),
+        ("density", -0.1),
+        ("top_k", 1.5),
+        ("absolute", -1),
+        ("unknown", 0),
+    ]:
         with pytest.raises(ValueError):
             threshold_matrix(matrix, strategy, value)
 
@@ -145,7 +171,10 @@ def test_demo_atlases_and_patient_isolation():
         connectome = get_connectome("DEMO-001", atlas)
         assert validate_connectome(connectome) == connectome
         assert len(connectome["nodes"]) == int(atlas.split("-")[1])
-        assert all(node["x"] < 0 if node["hemisphere"] == "L" else node["x"] > 0 for node in connectome["nodes"])
+        assert all(
+            node["x"] < 0 if node["hemisphere"] == "L" else node["x"] > 0
+            for node in connectome["nodes"]
+        )
         connectome["nodes"][0]["name"] = "mutated"
         assert get_connectome("DEMO-001", atlas)["nodes"][0]["name"] != "mutated"
     with pytest.raises(ValueError):
@@ -162,13 +191,19 @@ def test_sensitivity_fraction_bounds_and_effect(line_connectome):
 
 def test_counterfactual_constraints_are_hard(line_connectome):
     regions = [{"region_id": 0, "fraction_removed": 0.2}, {"region_id": 1, "fraction_removed": 0.8}]
-    result = counterfactuals(line_connectome, regions, {"minimum_target_coverage": 0.6, "protected_regions": [0], "max_candidates": 3})
+    result = counterfactuals(
+        line_connectome,
+        regions,
+        {"minimum_target_coverage": 0.6, "protected_regions": [0], "max_candidates": 3},
+    )
     assert result["candidates"]
     assert len(result["candidates"]) <= 3
     for candidate in result["candidates"]:
         assert candidate["target_coverage"] >= 0.6 - 1e-12
         assert candidate["regions"][0]["fraction_removed"] == 0
-    infeasible = counterfactuals(line_connectome, regions, {"minimum_target_coverage": 0.9, "protected_regions": [0]})
+    infeasible = counterfactuals(
+        line_connectome, regions, {"minimum_target_coverage": 0.9, "protected_regions": [0]}
+    )
     assert infeasible["candidates"] == []
     assert counterfactuals(line_connectome, [], {})["candidates"] == []
     with pytest.raises(ValueError):

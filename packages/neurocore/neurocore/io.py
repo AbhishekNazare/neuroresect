@@ -13,6 +13,7 @@ from neurocore.validation import validate_connectome
 def read_json(path: str | Path):
     def reject_constant(value):
         raise ValueError(f"Nonstandard JSON numeric constant: {value}")
+
     try:
         return json.loads(Path(path).read_text(), parse_constant=reject_constant)
     except (OSError, json.JSONDecodeError) as error:

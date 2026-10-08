@@ -26,8 +26,11 @@ def code_revision() -> str:
         return revision
     try:
         return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=Path(__file__).parent,
-            stderr=subprocess.DEVNULL, text=True, timeout=2,
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).parent,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
         ).strip()
     except (OSError, subprocess.SubprocessError):
         return "unavailable"
@@ -41,25 +44,36 @@ def provenance(operation: str, inputs: Any, config: dict | None = None) -> dict:
         except importlib.metadata.PackageNotFoundError:
             versions[package] = "unavailable"
     return {
-        "engine_version": __version__, "operation": operation,
-        "code_revision": code_revision(), "code_dirty": code_dirty(), "python_version": platform.python_version(),
-        "dependencies": versions, "input_hash": content_hash(inputs),
-        "config_hash": content_hash(config or {}), "config": config or {},
+        "engine_version": __version__,
+        "operation": operation,
+        "code_revision": code_revision(),
+        "code_dirty": code_dirty(),
+        "python_version": platform.python_version(),
+        "dependencies": versions,
+        "input_hash": content_hash(inputs),
+        "config_hash": content_hash(config or {}),
+        "config": config or {},
         "research_only": True,
     }
 
 
 def connectome_identity(connectome: dict) -> dict:
-    return {key: connectome[key] for key in (
-        "patient_id", "dataset_id", "atlas_id", "synthetic", "nodes", "matrix"
-    )}
+    return {
+        key: connectome[key]
+        for key in ("patient_id", "dataset_id", "atlas_id", "synthetic", "nodes", "matrix")
+    }
 
 
 def code_dirty() -> bool | None:
     try:
-        return bool(subprocess.check_output(
-            ["git", "status", "--porcelain"], cwd=Path(__file__).parent,
-            stderr=subprocess.DEVNULL, text=True, timeout=2,
-        ).strip())
+        return bool(
+            subprocess.check_output(
+                ["git", "status", "--porcelain"],
+                cwd=Path(__file__).parent,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=2,
+            ).strip()
+        )
     except (OSError, subprocess.SubprocessError):
         return None

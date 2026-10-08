@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from typing import Any
 
 from neurocore.demo import get_connectome, list_atlases, list_patients
 from neurocore.io import export_connectome, import_connectome, read_json, write_json
@@ -12,7 +13,10 @@ from neurocore.simulation import simulate
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="neuroresect", description="NeuroResect research engine — synthetic demonstration, not clinical advice")
+    root = argparse.ArgumentParser(
+        prog="neuroresect",
+        description="NeuroResect research engine — synthetic demonstration, not clinical advice",
+    )
     commands = root.add_subparsers(dest="command", required=True)
     commands.add_parser("patients", help="List the synthetic demonstration cohort")
     commands.add_parser("atlases", help="List illustrative atlases")
@@ -25,7 +29,10 @@ def parser() -> argparse.ArgumentParser:
     source.add_argument("--patient")
     source.add_argument("--input", help="Validated connectome JSON file")
     simulation.add_argument("--atlas", default="demo-64")
-    simulation.add_argument("--regions", help="JSON file containing region_id/fraction_removed array; default is actual_resection")
+    simulation.add_argument(
+        "--regions",
+        help="JSON file containing region_id/fraction_removed array; default is actual_resection",
+    )
     simulation.add_argument("--method", choices=["weighted", "binary"], default="weighted")
     simulation.add_argument("--threshold", type=float, default=0.0)
     simulation.add_argument("--output")
@@ -36,7 +43,9 @@ def parser() -> argparse.ArgumentParser:
     experiment = commands.add_parser("experiment", help="Run a patient-separated A/B/C study")
     experiment.add_argument("config", help="JSON experiment configuration")
     experiment.add_argument("--output", required=True, help="Artifact directory")
-    reproduce = commands.add_parser("reproduce", help="Reproduce and compare an exported experiment")
+    reproduce = commands.add_parser(
+        "reproduce", help="Reproduce and compare an exported experiment"
+    )
     reproduce.add_argument("artifact")
     reproduce.add_argument("--output", required=True, help="Artifact directory")
     return root
@@ -44,6 +53,7 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    result: Any
     try:
         if args.command == "patients":
             result = list_patients()
@@ -57,15 +67,28 @@ def main(argv: list[str] | None = None) -> int:
             result = {"status": "validated", "output": args.output, "regions": len(result["nodes"])}
         elif args.command in ("experiment", "reproduce"):
             from neurocore.experiments import reproduce_experiment, run_experiment
+
             if args.command == "experiment":
                 result = run_experiment(read_json(args.config), args.output)
             else:
                 result = reproduce_experiment(args.artifact, args.output)
-            print(json.dumps({"id": result["id"], "output": args.output,
-                              "reproduction": result.get("reproduction")}, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "id": result["id"],
+                        "output": args.output,
+                        "reproduction": result.get("reproduction"),
+                    },
+                    indent=2,
+                )
+            )
             return 2 if result.get("reproduction", {}).get("matches") is False else 0
         else:
-            connectome = import_connectome(args.input) if args.input else get_connectome(args.patient, args.atlas)
+            connectome = (
+                import_connectome(args.input)
+                if args.input
+                else get_connectome(args.patient, args.atlas)
+            )
             regions = read_json(args.regions) if args.regions else connectome["actual_resection"]
             result = simulate(connectome, regions, args.method, args.threshold)
         if getattr(args, "output", None) and args.command != "import":
