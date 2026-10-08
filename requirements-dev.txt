@@ -1,0 +1,7 @@
+-e ./packages/neurocore
+-e ./apps/api
+pytest>=8,<10
+hypothesis>=6,<7
+httpx>=0.28,<1
+ruff>=0.11,<1
+mypy>=1.15,<2
