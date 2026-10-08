@@ -1,0 +1,21 @@
+{
+  "name": "neuroresect",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @neuroresect/web",
+    "build": "npm run build --workspace @neuroresect/web",
+    "start": "npm run start --workspace @neuroresect/web",
+    "typecheck": "npm run typecheck --workspace @neuroresect/web",
+    "test:e2e": "npm run test:e2e --workspace @neuroresect/web"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.9"
+  }
+}
