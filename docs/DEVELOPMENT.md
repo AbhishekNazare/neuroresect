@@ -48,6 +48,8 @@ docker compose config --quiet
 
 Browser tests exercise an actual API and rendered workstation. Screenshot captures are supporting visual evidence; numerical and API tests remain the source of correctness checks.
 
+`npm run typecheck` generates Next.js route/environment declarations before checking types. `next-env.d.ts` is generated and ignored, so switching between development and production does not dirty the source checkout.
+
 ## Troubleshooting
 
 | Symptom | Check |
