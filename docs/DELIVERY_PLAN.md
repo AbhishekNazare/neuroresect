@@ -27,3 +27,22 @@ The release includes a functioning DWI-connectome workflow on synthetic data plu
 - Simulated post-resection features use preoperative connectivity and resection definitions, never observed postoperative outcome variables.
 - Synthetic outcome-model metrics demonstrate software only. They do not establish clinical predictive utility.
 - All displayed predictions include model, feature version, dataset, scenario, uncertainty method, and research labeling.
+
+
+## Real-data completion programme
+
+The original prototype phases are merged. The remaining programme is incremental; a merged infrastructure PR does not imply that its dataset-dependent acceptance gate is satisfied.
+
+| Phase | Branch | Acceptance gate | Status |
+| --- | --- | --- | --- |
+| 07 | `feat/ideas-data-ingestion` | Acquired and audited connectomes, outcomes and resections with reproducible ID joins | Acquisition/audit infrastructure implemented; metadata sample verified; Figshare derivatives blocked by provider browser challenge |
+| 08 | `feat/anatomical-atlas-pipeline` | One actual patient with verified atlas order, geometry and resection alignment | Awaiting derivative assets |
+| 09 | `feat/real-cohort-outcomes` | Frozen endpoint, leakage-controlled real cohort A/B/C evaluations and reproducible artifacts | Awaiting audited cohort |
+| 10 | `feat/research-model-registry` | Versioned compatible real model serving with calibrated evaluation and explanations | Pending real experiments |
+| 11 | `feat/anatomical-scenarios` | Physical mask edits, constraints and sensitivity verified against anatomy | Pending aligned imaging |
+| 12 | `feat/patient-anatomy-workspace` | Complete real-data workflow and inspectable intermediate results | Pending real anatomy/model contracts |
+| 13 | `feat/lab-deployment` | Identity, migrations, durable recovery, object storage and backup/restore | Pending implementation and deployment configuration |
+| 14 | `feat/multimodal-research` | Actual matched modalities and evaluated fusion, not placeholders | Requires suitable source data |
+| 15 | `feat/research-release-validation` | Requirements traceability, reproducible real results and documented independent validation status | Pending prior gates |
+
+[IDEAS integration](IDEAS_INTEGRATION.md) records acquisition commands, evidence and current blockers. Independent clinical validation is an evidence requirement, not a property established by software tests.
