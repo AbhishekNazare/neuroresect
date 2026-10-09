@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import zipfile
 from typing import Any
 
 from neurocore.demo import get_connectome, list_atlases, list_patients
@@ -60,6 +61,25 @@ def parser() -> argparse.ArgumentParser:
     )
     audit.add_argument("cohort")
     audit.add_argument("--output", required=True)
+    networks = commands.add_parser("ideas-networks", help="Inspect real IDEAS network archives")
+    networks.add_argument("archive")
+    networks.add_argument("--cache", required=True)
+    networks.add_argument("--output", required=True)
+    matrix = commands.add_parser(
+        "ideas-matrix", help="Validate one source matrix without guessing anatomy"
+    )
+    matrix.add_argument("archive", help="Extracted probabilistic or deterministic ZIP")
+    matrix.add_argument(
+        "--member", required=True, help="Exact member path from the network inventory"
+    )
+    matrix.add_argument("--output", required=True)
+    matrix_audit = commands.add_parser(
+        "ideas-matrix-audit", help="Audit all matrices for one atlas/measure"
+    )
+    matrix_audit.add_argument("archive")
+    matrix_audit.add_argument("--atlas", required=True)
+    matrix_audit.add_argument("--measure", default="Count")
+    matrix_audit.add_argument("--output", required=True)
     return root
 
 
@@ -67,7 +87,45 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     result: Any
     try:
-        if args.command in ("ideas-discover", "dataset-download", "cohort-audit"):
+        if args.command == "ideas-matrix-audit":
+            from neurocore.ideas import audit_network_matrices
+
+            result = audit_network_matrices(args.archive, args.atlas, args.measure)
+            write_json(args.output, result)
+            print(
+                json.dumps(
+                    {key: value for key, value in result.items() if key != "matrices"}, indent=2
+                )
+            )
+            return 2 if result["invalid_count"] else 0
+        elif args.command in ("ideas-networks", "ideas-matrix"):
+            from pathlib import Path
+
+            from neurocore.ideas import (
+                index_network_archive,
+                prepare_network_archives,
+                read_network_matrix,
+            )
+
+            if args.command == "ideas-networks":
+                acquisition = prepare_network_archives(args.archive, args.cache)
+                result = {"acquisition": acquisition, "inventories": {}}
+                for archive in acquisition["archives"]:
+                    inventory = index_network_archive(Path(args.cache) / archive["path"])
+                    write_json(Path(args.output) / f"{archive['method']}-inventory.json", inventory)
+                    result["inventories"][archive["method"]] = {
+                        key: value
+                        for key, value in inventory.items()
+                        if key not in ("matrices", "missing_combinations")
+                    }
+                write_json(Path(args.output) / "summary.json", result)
+            else:
+                result = read_network_matrix(args.archive, args.member)
+                write_json(args.output, result)
+                result = {key: value for key, value in result.items() if key != "matrix"}
+            print(json.dumps(result, indent=2, allow_nan=False))
+            return 0
+        elif args.command in ("ideas-discover", "dataset-download", "cohort-audit"):
             from neurocore.datasets import audit_cohort, discover_ideas, download_manifest
 
             if args.command == "ideas-discover":
@@ -120,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(json.dumps(result, indent=2, allow_nan=False))
         return 0
-    except (ValueError, OSError) as error:
+    except (ValueError, OSError, zipfile.BadZipFile, KeyError) as error:
         print(f"Research input error: {error}", file=sys.stderr)
         return 2
 
