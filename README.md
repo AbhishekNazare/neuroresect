@@ -11,7 +11,7 @@
 
 [Quick start](#quick-start) · [Methods](docs/SCIENCE.md) · [Architecture](docs/ARCHITECTURE.md) · [Import data](docs/DATA_IMPORT.md) · [Experiments](docs/EXPERIMENTS.md)
 
-> **IDEAS integration in progress:** pinned source discovery, checksum-verified metadata downloads, and cohort eligibility audits are available. Real connectomes/outcomes are not yet acquired or trained on. See [IDEAS integration status and commands](docs/IDEAS_INTEGRATION.md).
+> **IDEAS integration in progress:** real network matrices for 288 subjects have been acquired and indexed; both Lausanne-36 Count audits pass (576 matrices total). Clinical outcomes, resection mappings and anatomical registration are still pending; no real outcome model has been trained. See [IDEAS integration status and commands](docs/IDEAS_INTEGRATION.md).
 
 ## The workstation
 

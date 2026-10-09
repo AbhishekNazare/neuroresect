@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "dataset_id": "ideas-ii-networks-68572654",
+  "scope": "real-structural-connectomes",
+  "checksum_origin": "SHA-256 computed from the initial HTTPS download; not a publisher-supplied checksum. Nested archive CRC verification is recorded separately.",
+  "assets": [
+    {
+      "path": "networks.zip",
+      "url": "https://ndownloader.figshare.com/files/68572654?private_link=2dbae1fbfe72f7e66e1a",
+      "size": 2891080351,
+      "algorithm": "sha256",
+      "digest": "373c810bd3b8e437c6bda92bbc993400bb7c1aa45349789419055bfdfdde9aa3"
+    }
+  ]
+}

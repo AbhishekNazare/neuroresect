@@ -35,7 +35,7 @@ The original prototype phases are merged. The remaining programme is incremental
 
 | Phase | Branch | Acceptance gate | Status |
 | --- | --- | --- | --- |
-| 07 | `feat/ideas-data-ingestion` | Acquired and audited connectomes, outcomes and resections with reproducible ID joins | Acquisition/audit infrastructure implemented; metadata sample verified; Figshare derivatives blocked by provider browser challenge |
+| 07 | `feat/ideas-data-ingestion` | Acquired and audited connectomes, outcomes and resections with reproducible ID joins | Real network archive acquired; 288 subjects indexed and 576 count matrices validated; clinical tables, labels and resection mappings still needed |
 | 08 | `feat/anatomical-atlas-pipeline` | One actual patient with verified atlas order, geometry and resection alignment | Awaiting derivative assets |
 | 09 | `feat/real-cohort-outcomes` | Frozen endpoint, leakage-controlled real cohort A/B/C evaluations and reproducible artifacts | Awaiting audited cohort |
 | 10 | `feat/research-model-registry` | Versioned compatible real model serving with calibrated evaluation and explanations | Pending real experiments |
