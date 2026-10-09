@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "dataset_id": "ideas-ii",
+  "catalogue_url": "https://www.cnnp-lab.com/ideas-data",
+  "openneuro": {
+    "dataset": "ds007401",
+    "version": "1.0.0",
+    "commit": "2e7f2573a5f8a9921cb19fca5e601bc141633f49",
+    "scope": "raw imaging and acquisition metadata; not processed connectomes or clinical outcomes"
+  },
+  "figshare": [
+    {"role": "processed_diffusion_and_connectomes", "url": "https://figshare.com/s/2dbae1fbfe72f7e66e1a"},
+    {"role": "connectome_region_order", "url": "https://figshare.com/s/3e6a1321da894260f81d"},
+    {"role": "clinical_metadata", "url": "https://figshare.com/s/bab70268afeb1071202b"},
+    {"role": "regional_resection_percentages", "url": "https://figshare.com/s/097ba0e254e36f0eee52"},
+    {"role": "native_resection_masks", "url": "https://figshare.com/s/476b37fd883c14f50324"},
+    {"role": "freesurfer_reconstructions", "url": "https://figshare.com/s/b13b8bb41390d3f7a088"}
+  ],
+  "citations": ["10.1111/epi.18192", "10.1002/epi.70186", "10.1162/IMAG.a.147"],
+  "notes": "Catalogue only, not a download manifest. Resolve individual files, versions, sizes, checksums and applicable terms before acquisition. Do not assume the OpenNeuro license also applies to every Figshare collection."
+}
