@@ -48,6 +48,18 @@ def parser() -> argparse.ArgumentParser:
     )
     reproduce.add_argument("artifact")
     reproduce.add_argument("--output", required=True, help="Artifact directory")
+    ideas = commands.add_parser("ideas-discover", help="Inventory pinned IDEAS II release metadata")
+    ideas.add_argument("--output", required=True)
+    ideas.add_argument("--subject", action="append", dest="subjects")
+    download = commands.add_parser("dataset-download", help="Download checksum-pinned assets")
+    download.add_argument("manifest")
+    download.add_argument("--destination", required=True)
+    download.add_argument("--max-bytes", type=int, default=100_000_000)
+    audit = commands.add_parser(
+        "cohort-audit", help="Audit explicitly mapped real-data eligibility"
+    )
+    audit.add_argument("cohort")
+    audit.add_argument("--output", required=True)
     return root
 
 
@@ -55,7 +67,19 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     result: Any
     try:
-        if args.command == "patients":
+        if args.command in ("ideas-discover", "dataset-download", "cohort-audit"):
+            from neurocore.datasets import audit_cohort, discover_ideas, download_manifest
+
+            if args.command == "ideas-discover":
+                result = discover_ideas(args.output, args.subjects)
+            elif args.command == "dataset-download":
+                result = download_manifest(args.manifest, args.destination, args.max_bytes)
+            else:
+                result = audit_cohort(args.cohort)
+                write_json(args.output, result)
+            print(json.dumps(result, indent=2, allow_nan=False))
+            return 0
+        elif args.command == "patients":
             result = list_patients()
         elif args.command == "atlases":
             result = list_atlases()
@@ -96,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(json.dumps(result, indent=2, allow_nan=False))
         return 0
-    except ValueError as error:
+    except (ValueError, OSError) as error:
         print(f"Research input error: {error}", file=sys.stderr)
         return 2
 
