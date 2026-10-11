@@ -7,7 +7,7 @@ name = "neuroresect-core"
 version = "0.1.0"
 description = "Reproducible virtual resection and synthetic research experiments"
 requires-python = ">=3.11"
-dependencies = ["numpy>=2.1", "scipy>=1.14", "networkx>=3.4", "scikit-learn>=1.6"]
+dependencies = ["numpy>=2.1", "scipy>=1.14", "networkx>=3.4", "scikit-learn>=1.6", "openpyxl>=3.1,<4"]
 
 [project.scripts]
 neuroresect = "neurocore.cli:main"

@@ -1,0 +1,25 @@
+{
+  "name": "IDEAS II year-one retrospective A/B/C baseline",
+  "cohort": "data/ideas/cohort-year1.json",
+  "atlas": "Lausanne-36",
+  "measure": "Count",
+  "tractography": "probabilistic",
+  "endpoint": "ILAE_Year1: 1 versus 2\u20136; NA excluded",
+  "resection_input_unit": "fraction",
+  "seed": 42,
+  "folds": 5,
+  "estimator": "logistic",
+  "C": 1.0,
+  "threshold": 0.5,
+  "hyperparameter_search": false,
+  "categorical_features": [
+    "Sex",
+    "Binned_Onset_Age",
+    "Binned_Age_at_Scan"
+  ],
+  "numeric_clinical_features": [
+    "Number_ASMs"
+  ],
+  "calibration": "Assess held-out Brier score and reliability; no fitted recalibration in this baseline",
+  "scope": "Retrospective internal cross-validation only; actual postoperative resection fractions"
+}
