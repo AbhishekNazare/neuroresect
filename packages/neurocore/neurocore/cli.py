@@ -80,6 +80,12 @@ def parser() -> argparse.ArgumentParser:
     matrix_audit.add_argument("--atlas", required=True)
     matrix_audit.add_argument("--measure", default="Count")
     matrix_audit.add_argument("--output", required=True)
+    cohort = commands.add_parser(
+        "ideas-cohort", help="Join verified real source tables and matrices"
+    )
+    for field in ("patients", "controls", "labels", "resections", "archive", "output"):
+        cohort.add_argument(f"--{field}", required=True)
+    cohort.add_argument("--resection-unit", required=True, choices=["fraction", "percent"])
     return root
 
 
@@ -87,7 +93,30 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     result: Any
     try:
-        if args.command == "ideas-matrix-audit":
+        if args.command == "ideas-cohort":
+            from neurocore.ideas_cohort import build_ideas_cohort
+
+            result = build_ideas_cohort(
+                args.patients,
+                args.controls,
+                args.labels,
+                args.resections,
+                args.archive,
+                args.output,
+                args.resection_unit,
+            )
+            print(
+                json.dumps(
+                    {
+                        key: value
+                        for key, value in result.items()
+                        if key not in ("subjects", "region_labels")
+                    },
+                    indent=2,
+                )
+            )
+            return 0
+        elif args.command == "ideas-matrix-audit":
             from neurocore.ideas import audit_network_matrices
 
             result = audit_network_matrices(args.archive, args.atlas, args.measure)
