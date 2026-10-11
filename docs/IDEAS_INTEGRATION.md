@@ -6,9 +6,9 @@ The acquisition and audit tools are implemented. **Real outcome training is not 
 
 The pinned OpenNeuro `ds007401` version `1.0.0` inventory contains 542 subject directories: 541 with T1w imaging, 492 with FLAIR, and 314 with diffusion imaging. These are modality-availability counts, not surgical training-cohort counts. Patient/control membership is not inferred from identifiers.
 
-The initial acquisition verified eight metadata files (10,940 bytes). The subsequent acquisition downloaded the real `networks.zip` archive (2,891,080,351 bytes), verified both nested archives by CRC, and indexed 288 subjects. Both Lausanne-36 Count audits passed: 288 matrices per tractography method, each with 82 regions. No outcome labels or resection tables have been acquired, and no real outcome model has been trained. Local files and reports are under `data/ideas/`, excluded from Git. See [network acquisition and audit commands](IDEAS_NETWORKS.md).
+The initial acquisition verified eight metadata files (10,940 bytes). The subsequent acquisition downloaded the real `networks.zip` archive (2,891,080,351 bytes), verified both nested archives by CRC, and indexed 288 subjects. Both Lausanne-36 Count audits passed: 288 matrices per tractography method, each with 82 regions. Clinical outcomes and resection tables are now acquired and joined; no real outcome model has been trained yet. Local files and reports are under `data/ideas/`, excluded from Git. See [network acquisition and audit commands](IDEAS_NETWORKS.md).
 
-The publisher's [catalogue](https://www.cnnp-lab.com/ideas-data) and [OpenNeuro README](https://github.com/OpenNeuroDatasets/ds007401/blob/2e7f2573a5f8a9921cb19fca5e601bc141633f49/README.md) distinguish raw imaging on OpenNeuro from processed derivatives and clinical tables on Figshare. The share pages return a browser challenge here. The user supplied the network file ID; its download works through the official `ndownloader.figshare.com` host with the published share token. Direct file links are still needed for clinical metadata, ordered region labels and resection percentages. This is a source-access blocker, not a new research-authorization requirement.
+The publisher's [catalogue](https://www.cnnp-lab.com/ideas-data) and [OpenNeuro README](https://github.com/OpenNeuroDatasets/ds007401/blob/2e7f2573a5f8a9921cb19fca5e601bc141633f49/README.md) distinguish raw imaging on OpenNeuro from processed derivatives and clinical tables on Figshare. The user supplied direct file links for all five clinical/label/resection companions; those files are now acquired. The verified join yields 182 eligible year-one surgical cases. See [cohort mapping and exclusions](IDEAS_COHORT.md).
 
 ## Reproducible acquisition
 
@@ -76,9 +76,9 @@ The report includes all exclusion reasons, eligible class counts, and input hash
 
 ## Next acceptance gates
 
-1. Network acquisition is complete. Resolve and acquire ordered atlas labels, clinical metadata and resection tables with sizes/checksums/terms recorded.
-2. The nested ZIP/CSV network adapter and numeric audits are implemented. Complete the clinical/resection adapters after inspecting their real schemas. Review subject-ID joins and report unmatched records.
-3. Verify a common atlas, matrix ordering, weight units and resection mapping. Never invent anatomical coordinates to make imports pass.
+1. Networks and all five companion files are acquired and fingerprinted.
+2. Network, clinical, label and resection adapters are implemented; the 182-case cohort and exclusions are recorded.
+3. Lausanne-36 region-name mapping is verified; confirm the explicit fractional-unit interpretation against source imaging/methods and obtain anatomical coordinates/surfaces.
 4. Export one real patient through the existing import/simulation pipeline; only then scale to all eligible subjects.
 5. Freeze the outcome definition and cohort audit before implementing real-data A/B/C evaluation.
 

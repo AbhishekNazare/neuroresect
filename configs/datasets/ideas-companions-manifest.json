@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "dataset_id": "ideas-companions-v1",
+  "scope": "clinical-labels-resections",
+  "checksum_origin": "Locally computed SHA-256 after initial HTTPS acquisition",
+  "assets": [
+    {
+      "path": "46131036",
+      "url": "https://ndownloader.figshare.com/files/46131036?private_link=bab70268afeb1071202b",
+      "size": 40255,
+      "algorithm": "sha256",
+      "digest": "f4288305da3240c11b09470ddefe71c9a2cc3eb9c2f2479eb7571cd85dfb3a70"
+    },
+    {
+      "path": "48408520",
+      "url": "https://ndownloader.figshare.com/files/48408520?private_link=bab70268afeb1071202b",
+      "size": 1724,
+      "algorithm": "sha256",
+      "digest": "9b3e1aade6196b0bfc99ef3bca86c4d8ff2e9b52f837da78d6d17b9abc3932eb"
+    },
+    {
+      "path": "48408532",
+      "url": "https://ndownloader.figshare.com/files/48408532?private_link=bab70268afeb1071202b",
+      "size": 28564,
+      "algorithm": "sha256",
+      "digest": "8473fdfb7774f19b55c3cf221d7f5127044dc0161c6accb27a34fb348b8845e7"
+    },
+    {
+      "path": "67695237",
+      "url": "https://ndownloader.figshare.com/files/67695237?private_link=3e6a1321da894260f81d",
+      "size": 19629,
+      "algorithm": "sha256",
+      "digest": "72aa797599c99749d6c8b8a60239e2cae0845e8766e9dce397d8925a42e3d1a7"
+    },
+    {
+      "path": "46131042",
+      "url": "https://ndownloader.figshare.com/files/46131042?private_link=097ba0e254e36f0eee52",
+      "size": 119892,
+      "algorithm": "sha256",
+      "digest": "edda5407ce4f60e7599bc51eba217e4bf08e8ec5f5f1e97688455cb8611f210a"
+    }
+  ]
+}
