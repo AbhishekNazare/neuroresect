@@ -49,4 +49,4 @@ Exclusion reasons may overlap. The source-level duplicate collapse and each excl
 
 Region-name correspondence is verified. This does **not** provide patient MRI coordinates, cortical surfaces, imaging registration or prospective clinical validation. The headless graph analysis requires no invented coordinates. Actual postoperative resection fractions make this a retrospective analysis.
 
-The [first experiment configuration](../configs/experiments/ideas-year1.json) is fixed before fitting: probabilistic Count, five patient-separated folds, seed 42, logistic regression with C=1, no hyperparameter search, and a 0.5 decision threshold. A/B/C comparisons must use the same cohort and held-out folds. Model fitting is the next delivery increment.
+The [first experiment configuration](../configs/experiments/ideas-year1.json) is fixed before fitting: probabilistic Count, five patient-separated folds, seed 42, logistic regression with C=1, no hyperparameter search, and a 0.5 decision threshold. A/B/C comparisons must use the same cohort and held-out folds. The first fit and held-out results are documented in [real experiments](REAL_EXPERIMENTS.md).

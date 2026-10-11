@@ -86,6 +86,11 @@ def parser() -> argparse.ArgumentParser:
     for field in ("patients", "controls", "labels", "resections", "archive", "output"):
         cohort.add_argument(f"--{field}", required=True)
     cohort.add_argument("--resection-unit", required=True, choices=["fraction", "percent"])
+    real = commands.add_parser(
+        "ideas-experiment", help="Run the pre-specified real retrospective baseline"
+    )
+    real.add_argument("config")
+    real.add_argument("--output", required=True)
     return root
 
 
@@ -93,7 +98,24 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     result: Any
     try:
-        if args.command == "ideas-cohort":
+        if args.command == "ideas-experiment":
+            from neurocore.real_experiments import run_real_experiment
+
+            result = run_real_experiment(args.config, args.output)
+            print(
+                json.dumps(
+                    {
+                        "patient_count": result["patient_count"],
+                        "metrics": {
+                            key: value["metrics"] for key, value in result["models"].items()
+                        },
+                        "paired_auc_C_minus_A": result["paired_auc_C_minus_A"],
+                    },
+                    indent=2,
+                )
+            )
+            return 0
+        elif args.command == "ideas-cohort":
             from neurocore.ideas_cohort import build_ideas_cohort
 
             result = build_ideas_cohort(

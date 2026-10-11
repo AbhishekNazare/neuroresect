@@ -50,7 +50,7 @@ Every matching CSV is read and CRC-checked. The audit records numeric validity, 
 - `Count` and `CountScaled` are candidates for strength-weighted analysis, subject to review of the publisher's processing definitions. `MeanFA`, `MeanMD` and `MeanLength` remain distinct measures. In particular, MD and length cannot be passed off as connection strengths.
 - Patient/control status cannot be inferred from filenames. The clinical dictionary and a reviewed subject-ID join must establish cohort membership and outcome coding.
 - Ordered region labels and compatible anatomical definitions are required before registration in the UI. Resection percentages must be mapped to the matching atlas; a table for another atlas is not interchangeable.
-- No real outcome model has been trained by these commands. See [the integration gates](IDEAS_INTEGRATION.md).
+- These archive commands do not train models. A separate [real baseline experiment](REAL_EXPERIMENTS.md) is now available. See [the integration gates](IDEAS_INTEGRATION.md).
 
 
 ## Observed acquisition results

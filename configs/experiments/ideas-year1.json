@@ -21,5 +21,6 @@
     "Number_ASMs"
   ],
   "calibration": "Assess held-out Brier score and reliability; no fitted recalibration in this baseline",
-  "scope": "Retrospective internal cross-validation only; actual postoperative resection fractions"
+  "scope": "Retrospective internal cross-validation only; actual postoperative resection fractions",
+  "cohort_sha256": "471bef9fa2d81a7900aa443fcf0c0bc92844182c5069174f78a289364484ef7c"
 }
