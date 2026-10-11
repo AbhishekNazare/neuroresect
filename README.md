@@ -11,7 +11,7 @@
 
 [Quick start](#quick-start) · [Methods](docs/SCIENCE.md) · [Architecture](docs/ARCHITECTURE.md) · [Import data](docs/DATA_IMPORT.md) · [Experiments](docs/EXPERIMENTS.md)
 
-> **IDEAS integration in progress:** real network matrices for 288 subjects have been acquired and indexed; both Lausanne-36 Count audits pass (576 matrices total). Clinical outcomes and resections are joined into 182 eligible first-year cases. Anatomical registration and real model fitting remain pending. See [IDEAS integration status and commands](docs/IDEAS_INTEGRATION.md).
+> **IDEAS integration in progress:** real network matrices for 288 subjects have been acquired and indexed; both Lausanne-36 Count audits pass (576 matrices total). Clinical outcomes and resections are joined into 182 eligible first-year cases. The first real A/B/C baseline is fitted (held-out AUC 0.463 / 0.461 / 0.446); it shows no predictive improvement. See [real experiment results](docs/REAL_EXPERIMENTS.md). Anatomical registration and real-model UI serving remain pending. See [IDEAS integration status and commands](docs/IDEAS_INTEGRATION.md).
 
 ## The workstation
 

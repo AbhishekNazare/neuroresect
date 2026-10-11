@@ -37,7 +37,7 @@ The original prototype phases are merged. The remaining programme is incremental
 | --- | --- | --- | --- |
 | 07 | `feat/ideas-data-ingestion` | Acquired and audited connectomes, outcomes and resections with reproducible ID joins | Networks and companions acquired; 182 eligible first-year cases joined with explicit exclusions; fractional-unit assumption documented |
 | 08 | `feat/anatomical-atlas-pipeline` | One actual patient with verified atlas order, geometry and resection alignment | Awaiting derivative assets |
-| 09 | `feat/real-cohort-outcomes` | Frozen endpoint, leakage-controlled real cohort A/B/C evaluations and reproducible artifacts | Awaiting audited cohort |
+| 09 | `feat/real-cohort-outcomes` | Frozen endpoint, leakage-controlled real cohort A/B/C evaluations and reproducible artifacts | First logistic A/B/C baseline evaluated on 182 patients; no demonstrated improvement; external validation outstanding |
 | 10 | `feat/research-model-registry` | Versioned compatible real model serving with calibrated evaluation and explanations | Pending real experiments |
 | 11 | `feat/anatomical-scenarios` | Physical mask edits, constraints and sensitivity verified against anatomy | Pending aligned imaging |
 | 12 | `feat/patient-anatomy-workspace` | Complete real-data workflow and inspectable intermediate results | Pending real anatomy/model contracts |
