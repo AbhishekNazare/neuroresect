@@ -40,7 +40,7 @@ The original prototype phases are merged. The remaining programme is incremental
 | 09 | `feat/real-cohort-outcomes` | Frozen endpoint, leakage-controlled real cohort A/B/C evaluations and reproducible artifacts | First logistic A/B/C baseline evaluated on 182 patients; no demonstrated improvement; external validation outstanding |
 | 10 | `feat/research-model-registry` | Versioned compatible real model serving with calibrated evaluation and explanations | Pending real experiments |
 | 11 | `feat/anatomical-scenarios` | Physical mask edits, constraints and sensitivity verified against anatomy | Pending aligned imaging |
-| 12 | `feat/patient-anatomy-workspace` | Complete real-data workflow and inspectable intermediate results | Pending real anatomy/model contracts |
+| 12 | `feat/patient-anatomy-workspace` | Complete real-data workflow and inspectable intermediate results | Saved real-cohort results, comparisons and aggregate export available; patient anatomy/model contracts remain pending |
 | 13 | `feat/lab-deployment` | Identity, migrations, durable recovery, object storage and backup/restore | Pending implementation and deployment configuration |
 | 14 | `feat/multimodal-research` | Actual matched modalities and evaluated fusion, not placeholders | Requires suitable source data |
 | 15 | `feat/research-release-validation` | Requirements traceability, reproducible real results and documented independent validation status | Pending prior gates |

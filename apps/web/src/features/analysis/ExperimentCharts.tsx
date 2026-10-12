@@ -4,8 +4,16 @@ import type { ExperimentModel } from "@/lib/types";
 const colors = ["#79cbbc", "#ad9be0", "#e3aa6e"];
 export function ExperimentCharts({
   models,
+  predictionLabel = "held-out synthetic predictions",
 }: {
-  models: Record<string, ExperimentModel>;
+  models: Record<
+    string,
+    Pick<
+      ExperimentModel,
+      "roc_curve" | "precision_recall_curve" | "calibration"
+    >
+  >;
+  predictionLabel?: string;
 }) {
   const entries = Object.entries(models);
   const charts = [
@@ -48,7 +56,7 @@ export function ExperimentCharts({
           <svg
             viewBox="0 0 300 245"
             role="img"
-            aria-label={`${chart.title}: ${chart.y} versus ${chart.x}, held-out synthetic predictions`}
+            aria-label={`${chart.title}: ${chart.y} versus ${chart.x}, ${predictionLabel}`}
           >
             {[0, 0.25, 0.5, 0.75, 1].map((t) => (
               <g key={t}>

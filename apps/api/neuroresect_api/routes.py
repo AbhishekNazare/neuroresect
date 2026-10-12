@@ -190,3 +190,28 @@ def models():
 @router.post("/datasets/import", status_code=201, tags=["datasets"])
 def import_dataset(request: Request, body: ConnectomeImport):
     return request.app.state.service.import_connectome(body)
+
+
+@router.get("/research-studies", tags=["research studies"])
+def research_studies():
+    from .research_studies import STUDY_ID, study_report
+
+    report = study_report(STUDY_ID)
+    return [{key: report[key] for key in ("id", "name", "synthetic", "report_kind", "cohort")}]
+
+
+@router.get("/research-studies/{study_id}", tags=["research studies"])
+def research_study(study_id: Identifier):
+    from .research_studies import study_report
+
+    return study_report(study_id)
+
+
+@router.get("/research-studies/{study_id}/export", tags=["exports"])
+def export_research_study(study_id: Identifier):
+    from .research_studies import study_report
+
+    return JSONResponse(
+        study_report(study_id),
+        headers={"Content-Disposition": f'attachment; filename="{study_id}-aggregate.json"'},
+    )

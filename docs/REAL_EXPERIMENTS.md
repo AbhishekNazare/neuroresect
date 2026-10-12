@@ -51,4 +51,20 @@ To regenerate the figure:
 
 ## Remaining research and product work
 
-Confirm source resection units and anatomical registration against imaging; investigate acquisition/protocol confounding and missingness; pre-specify any new feature/model comparisons and use nested validation for tuning. Independent external validation, fitted calibration, registered model serving, actual anatomical surfaces and UI integration remain outstanding. Negative baseline findings must not be replaced by selecting whichever split or experiment scores best.
+Confirm source resection units and anatomical registration against imaging; investigate acquisition/protocol confounding and missingness; pre-specify any new feature/model comparisons and use nested validation for tuning. Independent external validation, fitted calibration, registered model serving, actual anatomical surfaces and interactive real-patient scenario integration remain outstanding. Negative baseline findings must not be replaced by selecting whichever split or experiment scores best.
+
+## Explore the saved results in the workstation
+
+Open **Experiments → IDEAS II results**. The saved aggregate report shows cohort exclusions, selectable performance metrics, feature sets, ROC/precision–recall/reliability curves, methods, limitations and source hashes. It does not retrain a model or enable real-patient predictions. The synthetic experiment lab remains separately labeled.
+
+The API packages the aggregate report, so viewing it needs no private dataset download. `GET /api/v1/research-studies` lists reports; `GET /api/v1/research-studies/ideas-year1-baseline-v1` retrieves this report; append `/export` for a JSON attachment. Patient IDs, individual prediction rows and model binaries are excluded.
+
+Regenerate the packaged report from the verified local experiment and its exact cohort:
+
+```sh
+.venv/bin/neuroresect ideas-report artifacts/ideas-year1-reproduction/results.json \
+  --cohort data/ideas/cohort-year1.json \
+  --output apps/api/neuroresect_api/reports/ideas-year1-baseline-v1.json
+```
+
+The exporter verifies the cohort hash, outcome alignment and stored metrics against held-out predictions, then recomputes curves. The output includes source and result hashes for auditability.
