@@ -1,6 +1,6 @@
 # Local research backup and recovery
 
-The SQLite recovery toolkit preserves application records: imported connectomes, scenarios, saved results, experiments, jobs and idempotency keys. It snapshots committed database state, verifies the snapshot and restores to a **new** file. This is the local SQLite part of the deployment programme; PostgreSQL/Redis recovery, authentication and external artifact storage remain separate work. Schema upgrades follow the [migration guide](DATABASE_MIGRATIONS.md).
+The SQLite recovery toolkit preserves application records: imported connectomes, scenarios, saved results, experiments, jobs and idempotency keys. It snapshots committed database state, verifies the snapshot and restores to a **new** file. This is the local SQLite part of the deployment programme; PostgreSQL has a separate [Compose recovery workflow](POSTGRES_RECOVERY.md); authentication and external artifact storage remain separate work. Schema upgrades follow the [migration guide](DATABASE_MIGRATIONS.md).
 
 ```mermaid
 flowchart LR
@@ -54,4 +54,4 @@ Jobs that were `QUEUED` or `RUNNING` at snapshot time become `FAILED` with stage
 
 The automated recovery drill snapshots a live WAL database during an uncommitted write, verifies committed records, restores all five application tables, and opens the recovered API. It checks scenario results, experiment metrics, imports, completed jobs and interrupted local/Celery-labeled jobs. Failure cases include corrupted or incomplete bundles, changed manifests, schema drift, existing files/symlinks/sidecars, unsupported URLs, timeouts and missing source files.
 
-The bundle does not contain downloaded IDEAS archives, local training artifacts, model binaries, filesystem assets, Redis queues, environment secrets or the source checkout. Back up those separately according to the deployment plan. This toolkit rejects PostgreSQL URLs; it is not a Compose disaster-recovery solution. Use deployment-specific PostgreSQL backup tooling and a separately tested broker/artifact recovery procedure before running a shared lab service. No retention scheduler or automatic offsite copy is configured.
+The bundle does not contain downloaded IDEAS archives, local training artifacts, model binaries, filesystem assets, Redis queues, environment secrets or the source checkout. Back up those separately according to the deployment plan. This toolkit rejects PostgreSQL URLs; it is not a Compose disaster-recovery solution. Use the [PostgreSQL recovery guide](POSTGRES_RECOVERY.md) for the Compose database and a separately tested external artifact recovery procedure before running a shared lab service. No retention scheduler or automatic offsite copy is configured.

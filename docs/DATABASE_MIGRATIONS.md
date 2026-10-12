@@ -30,7 +30,7 @@ docker compose run --rm api python -m neuroresect_api.migrations upgrade --adopt
 docker compose up -d --wait
 ```
 
-Use `upgrade` without `--adopt-legacy` after the first adoption. These commands preserve volumes. The SQLite backup command cannot back up PostgreSQL; shared-lab PostgreSQL recovery remains a separately tested deployment requirement.
+Use `upgrade` without `--adopt-legacy` after the first adoption. These commands preserve volumes. The SQLite backup command cannot back up PostgreSQL; follow the [PostgreSQL recovery guide](POSTGRES_RECOVERY.md) for the supplied Compose stack.
 
 ## Backup compatibility and development
 
