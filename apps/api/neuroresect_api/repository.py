@@ -3,10 +3,10 @@
 import hashlib
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
-from sqlalchemy import select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 
@@ -43,6 +43,7 @@ def job_payload(record: JobRecord) -> dict[str, Any]:
         "status": record.status,
         "progress": record.progress,
         "stage": record.stage,
+        "dispatch_attempts": record.dispatch_attempts,
         "result": record.result,
         "error": record.error,
         "created_at": record.created_at.isoformat(),
@@ -199,7 +200,14 @@ class Repository:
             result = session.execute(
                 update(JobRecord)
                 .where(JobRecord.id == job_id, JobRecord.status == "QUEUED")
-                .values(status="RUNNING", progress=10, stage="LOADING_INPUTS", updated_at=utcnow())
+                .values(
+                    status="RUNNING",
+                    progress=10,
+                    stage="LOADING_INPUTS",
+                    updated_at=utcnow(),
+                    started_at=utcnow(),
+                    heartbeat_at=utcnow(),
+                )
             )
             if cast(CursorResult, result).rowcount != 1:
                 return None
@@ -274,3 +282,116 @@ class Repository:
                 )
             )
             return cast(CursorResult, result).rowcount
+
+    def heartbeat(self, job_id: str) -> bool:
+        with self.database.sessions.begin() as session:
+            result = session.execute(
+                update(JobRecord)
+                .where(JobRecord.id == job_id, JobRecord.status == "RUNNING")
+                .values(heartbeat_at=utcnow())
+            )
+            return cast(CursorResult, result).rowcount == 1
+
+    def due_deliveries(self, limit: int = 20) -> list[str]:
+        with self.database.sessions() as session:
+            return list(
+                session.scalars(
+                    select(JobRecord.id)
+                    .where(
+                        JobRecord.executor == "celery",
+                        JobRecord.status == "QUEUED",
+                        or_(
+                            JobRecord.next_dispatch_at.is_(None),
+                            JobRecord.next_dispatch_at <= utcnow(),
+                        ),
+                    )
+                    .order_by(JobRecord.created_at)
+                    .limit(limit)
+                )
+            )
+
+    def reserve_delivery(self, job_id: str, retry_seconds: int) -> bool:
+        now = utcnow()
+        with self.database.sessions.begin() as session:
+            result = session.execute(
+                update(JobRecord)
+                .where(
+                    JobRecord.id == job_id,
+                    JobRecord.executor == "celery",
+                    JobRecord.status == "QUEUED",
+                    or_(JobRecord.next_dispatch_at.is_(None), JobRecord.next_dispatch_at <= now),
+                )
+                .values(
+                    next_dispatch_at=now + timedelta(seconds=retry_seconds),
+                    dispatch_attempts=JobRecord.dispatch_attempts + 1,
+                )
+            )
+            return cast(CursorResult, result).rowcount == 1
+
+    def delivery_stage(self, job_id: str, stage: str) -> None:
+        with self.database.sessions.begin() as session:
+            session.execute(
+                update(JobRecord)
+                .where(JobRecord.id == job_id, JobRecord.status == "QUEUED")
+                .values(stage=stage, updated_at=utcnow())
+            )
+
+    def expire_jobs(
+        self, lease_seconds: int, max_runtime_seconds: int, queue_timeout_seconds: int
+    ) -> int:
+        now = utcnow()
+        stale = or_(
+            func.coalesce(JobRecord.heartbeat_at, JobRecord.updated_at)
+            < now - timedelta(seconds=lease_seconds),
+            func.coalesce(JobRecord.started_at, JobRecord.created_at)
+            < now - timedelta(seconds=max_runtime_seconds),
+        )
+        with self.database.sessions.begin() as session:
+            running = session.execute(
+                update(JobRecord)
+                .where(JobRecord.executor == "celery", JobRecord.status == "RUNNING", stale)
+                .values(
+                    status="FAILED",
+                    stage="INTERRUPTED",
+                    updated_at=now,
+                    error={
+                        "code": "WORKER_LEASE_EXPIRED",
+                        "message": "Worker heartbeat or runtime limit expired. Submit a new job with a new idempotency key.",
+                        "details": {},
+                    },
+                )
+            )
+            queued = session.execute(
+                update(JobRecord)
+                .where(
+                    JobRecord.executor == "celery",
+                    JobRecord.status == "QUEUED",
+                    JobRecord.created_at < now - timedelta(seconds=queue_timeout_seconds),
+                )
+                .values(
+                    status="FAILED",
+                    stage="QUEUE_EXPIRED",
+                    updated_at=now,
+                    error={
+                        "code": "QUEUE_WAIT_EXPIRED",
+                        "message": "No worker claimed the job within its queue deadline. Submit a new job.",
+                        "details": {},
+                    },
+                )
+            )
+            return cast(CursorResult, running).rowcount + cast(CursorResult, queued).rowcount
+
+    def save_job_result(self, job_id: str, kind: str, payload: dict[str, Any]) -> None:
+        # The guarded UPDATE locks this job against expiry until the result transaction commits.
+        stable_hash(payload)
+        with self.database.sessions.begin() as session:
+            transition = session.execute(
+                update(JobRecord)
+                .where(JobRecord.id == job_id, JobRecord.status == "RUNNING")
+                .values(updated_at=JobRecord.updated_at)
+            )
+            if cast(CursorResult, transition).rowcount != 1:
+                return
+            job = session.get(JobRecord, job_id)
+            assert job is not None
+            session.merge(ResultRecord(scenario_id=job.scenario_id, kind=kind, payload=payload))

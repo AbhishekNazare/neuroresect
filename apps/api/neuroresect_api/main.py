@@ -36,11 +36,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             recovered = repository.recover_local_jobs()
             if recovered:
                 logger.warning("interrupted_local_jobs count=%d", recovered)
-        dispatcher = JobDispatcher(settings, repository, JobRunner(repository, service))
+        dispatcher = JobDispatcher(settings, repository, JobRunner(repository, service, settings))
         app.state.database = database
         app.state.repository = repository
         app.state.service = service
         app.state.dispatcher = dispatcher
+        dispatcher.start()
         try:
             yield
         finally:

@@ -57,6 +57,10 @@ class JobRecord(Base):
     updated_at: Mapped[Any] = mapped_column(DateTime(timezone=True))
     idempotency_scope: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     request_hash: Mapped[str] = mapped_column(String(64))
+    started_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    heartbeat_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_dispatch_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dispatch_attempts: Mapped[int] = mapped_column(Integer, server_default="0", default=0)
 
 
 class Database:

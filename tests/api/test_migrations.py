@@ -4,7 +4,7 @@ import pytest
 from neuroresect_api.backups import backup, restore, verify
 from neuroresect_api.baseline_schema import Base as Baseline
 from neuroresect_api.database import Database
-from neuroresect_api.migrations import BASELINE, head_revision, status, upgrade
+from neuroresect_api.migrations import head_revision, status, upgrade
 from neuroresect_api.repository import Repository
 from sqlalchemy import inspect
 
@@ -97,7 +97,7 @@ def test_versioned_snapshot_remains_verifiable_and_restorable(tmp_path):
     database.close()
     bundle = tmp_path / "backup"
     backup(url, bundle)
-    assert verify(bundle)["schema_revision"] == BASELINE
+    assert verify(bundle)["schema_revision"] == head_revision()
     restore(bundle, tmp_path / "restored.db")
     restored = Database(f"sqlite:///{tmp_path / 'restored.db'}")
     try:
@@ -120,5 +120,45 @@ def test_failed_sqlite_migration_rolls_back_schema_and_revision(tmp_path, monkey
         with pytest.raises(RuntimeError, match="Deliberate"):
             upgrade(database.engine)
         assert inspect(database.engine).get_table_names() == []
+    finally:
+        database.close()
+
+
+def test_upgrade_from_first_revision_preserves_queued_job(tmp_path):
+    from alembic import command
+    from neuroresect_api.migrations import BASELINE, configuration
+    from neuroresect_api.repository import utcnow
+
+    database = Database(f"sqlite:///{tmp_path / 'prior.db'}")
+    try:
+        with database.engine.begin() as connection:
+            command.upgrade(configuration(connection), BASELINE)
+            connection.execute(
+                Baseline.metadata.tables["jobs"]
+                .insert()
+                .values(
+                    id="JOB-prior",
+                    kind="simulation",
+                    scenario_id="SCN-prior",
+                    executor="celery",
+                    status="QUEUED",
+                    progress=0,
+                    stage="QUEUED",
+                    payload={},
+                    result=None,
+                    error=None,
+                    created_at=utcnow(),
+                    updated_at=utcnow(),
+                    idempotency_scope=None,
+                    request_hash="fixture",
+                )
+            )
+        with pytest.raises(RuntimeError, match="explicit upgrade"):
+            database.initialize()
+        upgrade(database.engine)
+        job = Repository(database).job("JOB-prior")
+        assert job["status"] == "QUEUED"
+        assert job["dispatch_attempts"] == 0
+        assert Repository(database).due_deliveries() == ["JOB-prior"]
     finally:
         database.close()
