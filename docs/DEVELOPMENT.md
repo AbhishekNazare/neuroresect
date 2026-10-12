@@ -34,6 +34,10 @@ The services are web, API, worker, PostgreSQL, and Redis. API health gates worke
 
 For an exact source revision in container provenance, build with `NEURORESECT_GIT_COMMIT` as documented in the README. Model/result artifacts must retain dataset/configuration hashes even when a deployment cannot resolve a git checkout.
 
+## Backup and recovery
+
+The [SQLite recovery guide](BACKUP_RECOVERY.md) covers verified live snapshots, restore to a new path, interrupted jobs, and an API recovery drill. Source datasets and training artifacts require separate backup. PostgreSQL/Redis recovery remains a deployment gate.
+
 ## Validation
 
 ```sh

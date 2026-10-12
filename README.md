@@ -70,7 +70,7 @@ With Docker running:
 NEURORESECT_GIT_COMMIT=$(git rev-parse HEAD) docker compose up --build
 ```
 
-Compose launches web, FastAPI, a Celery worker, PostgreSQL, and Redis. Web/API ports bind to localhost; queue/database ports stay internal. Named volumes preserve state. This is a local research deployment without lab identity management. [Operations guide →](docs/DEVELOPMENT.md)
+Compose launches web, FastAPI, a Celery worker, PostgreSQL, and Redis. Web/API ports bind to localhost; queue/database ports stay internal. Named volumes preserve state. This is a local research deployment without lab identity management. [Operations guide →](docs/DEVELOPMENT.md) · [Local backup and recovery →](docs/BACKUP_RECOVERY.md)
 
 ## From connections to consequences
 
