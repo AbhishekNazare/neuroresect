@@ -1,6 +1,6 @@
 # Versioned research databases
 
-The API packages an Alembic migration history. Revision `0001_research_records` freezes the original five research tables independently of the current ORM models. New databases initialize through this history; existing databases must be upgraded explicitly before starting the API. Startup rejects an old/unknown revision or schema drift instead of silently creating missing tables.
+The API packages an Alembic migration history. Current head is `0002_job_recovery`, which adds delivery reservations and worker liveness fields. Revision `0001_research_records` freezes the original five research tables independently of the current ORM models. New databases initialize through this history; existing databases must be upgraded explicitly before starting the API. Startup rejects an old/unknown revision or schema drift instead of silently creating missing tables.
 
 ## Local upgrade
 

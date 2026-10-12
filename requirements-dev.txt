@@ -1,6 +1,6 @@
 -c requirements.lock
 -e ./packages/neurocore
--e ./apps/api
+-e ./apps/api[worker]
 pytest>=8,<10
 hypothesis>=6,<7
 httpx>=0.28,<1

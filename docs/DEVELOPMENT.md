@@ -34,6 +34,10 @@ The services are web, API, worker, PostgreSQL, and Redis. API health gates worke
 
 For an exact source revision in container provenance, build with `NEURORESECT_GIT_COMMIT` as documented in the README. Model/result artifacts must retain dataset/configuration hashes even when a deployment cannot resolve a git checkout.
 
+## Job recovery
+
+Celery delivery now retries from persisted job records after broker/API outages, and worker heartbeats expose interrupted computations. See [job recovery and configuration](JOB_RECOVERY.md). Local thread restarts still mark unfinished jobs interrupted.
+
 ## Database upgrades
 
 Existing databases now require explicit schema adoption/upgrade before API startup. Follow the [migration guide](DATABASE_MIGRATIONS.md), taking a verified backup first. Fresh databases initialize automatically.

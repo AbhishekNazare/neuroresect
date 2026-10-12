@@ -2,6 +2,7 @@
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from threading import Event, Thread
 from typing import Any
 
 from .config import Settings
@@ -13,14 +14,31 @@ logger = logging.getLogger("neuroresect.jobs")
 
 
 class JobRunner:
-    def __init__(self, repository: Repository, service: ResearchService) -> None:
+    def __init__(
+        self, repository: Repository, service: ResearchService, settings: Settings | None = None
+    ) -> None:
         self.repository = repository
         self.service = service
+        self.settings = settings or Settings.from_env()
 
     def execute(self, job_id: str) -> None:
         job = self.repository.claim_job(job_id)
         if job is None:
             return
+        stopped = Event()
+
+        def keep_alive():
+            while not stopped.wait(self.settings.job_heartbeat_seconds):
+                try:
+                    if not self.repository.heartbeat(job_id):
+                        return
+                except Exception as exc:
+                    logger.error(
+                        "heartbeat_failed job_id=%s error_type=%s", job_id, type(exc).__name__
+                    )
+
+        heartbeat = Thread(target=keep_alive, name="job-heartbeat", daemon=True)
+        heartbeat.start()
         try:
             result = self.compute(job_id, job)
             self.repository.succeed(job_id, result)
@@ -34,6 +52,10 @@ class JobRunner:
             self.repository.fail(
                 job_id, "JOB_FAILED", "Computation failed. Review worker logs and submit a new job."
             )
+
+        finally:
+            stopped.set()
+            heartbeat.join()
 
     def compute(self, job_id: str, job: dict[str, Any]) -> dict[str, Any]:
         kind = job["kind"]
@@ -60,7 +82,7 @@ class JobRunner:
                 self.repository.progress(job_id, 20, "COMPUTING_GRAPH_METRICS")
                 simulation = simulate(connectome, regions, method=method)
                 simulation = self.attach_provenance(simulation, scenario, connectome)
-                self.repository.save_result(scenario["id"], "simulation", simulation)
+                self.repository.save_job_result(job_id, "simulation", simulation)
             self.repository.progress(job_id, 40, "BOOTSTRAP_MODEL_REFITS")
             result = predict_scenario(connectome, regions, simulation)
         elif kind == "sensitivity":
@@ -111,6 +133,8 @@ class JobDispatcher:
             else None
         )
         self.celery = None
+        self.stopped = Event()
+        self.recovery_thread: Thread | None = None
         if settings.job_executor == "celery":
             from celery import Celery
 
@@ -125,6 +149,12 @@ class JobDispatcher:
                 result_serializer="json",
                 broker_connection_timeout=3,
                 task_publish_retry=False,
+                task_ignore_result=True,
+                broker_transport_options={
+                    "socket_connect_timeout": 3,
+                    "socket_timeout": 3,
+                    "max_retries": 0,
+                },
             )
 
     def submit(
@@ -134,22 +164,66 @@ class JobDispatcher:
             kind, scenario_id, payload, self.settings.job_executor, key
         )
         if created:
-            try:
-                if self.pool is not None:
+            if self.pool is not None:
+                try:
                     self.pool.submit(self.runner.execute, job["id"])
-                else:
-                    assert self.celery is not None
-                    self.celery.send_task("neuroresect.execute_job", args=[job["id"]])
-            except Exception:
-                self.repository.fail(
-                    job["id"],
-                    "DISPATCH_FAILED",
-                    "The worker queue is unavailable. Submit a new job to retry.",
-                )
-                return self.repository.job(job["id"])
+                except Exception:
+                    self.repository.fail(
+                        job["id"],
+                        "DISPATCH_FAILED",
+                        "The local executor is unavailable. Submit a new job.",
+                    )
+            else:
+                self.deliver(job["id"])
+            return self.repository.job(job["id"])
         return job
 
+    def deliver(self, job_id: str) -> None:
+        if not self.repository.reserve_delivery(job_id, self.settings.job_dispatch_retry_seconds):
+            return
+        assert self.celery is not None
+        try:
+            self.celery.send_task(
+                "neuroresect.execute_job",
+                args=[job_id],
+                ignore_result=True,
+                expires=self.settings.job_queue_timeout_seconds,
+            )
+            self.repository.delivery_stage(job_id, "WAITING_FOR_WORKER")
+        except Exception as exc:
+            self.repository.delivery_stage(job_id, "WAITING_FOR_BROKER")
+            logger.warning("delivery_deferred job_id=%s error_type=%s", job_id, type(exc).__name__)
+
+    def recover_once(self) -> None:
+        self.repository.expire_jobs(
+            self.settings.job_lease_seconds,
+            self.settings.job_max_runtime_seconds,
+            self.settings.job_queue_timeout_seconds,
+        )
+        for job_id in self.repository.due_deliveries():
+            if self.stopped.is_set():
+                return
+            self.deliver(job_id)
+
+    def start(self) -> None:
+        if self.celery is None:
+            return
+
+        def recover():
+            while not self.stopped.is_set():
+                try:
+                    self.recover_once()
+                except Exception as exc:
+                    logger.error("recovery_scan_failed error_type=%s", type(exc).__name__)
+                self.stopped.wait(self.settings.job_recovery_interval_seconds)
+
+        self.recovery_thread = Thread(target=recover, name="job-recovery", daemon=True)
+        self.recovery_thread.start()
+
     def shutdown(self) -> None:
+        self.stopped.set()
+        if self.recovery_thread is not None:
+            self.recovery_thread.join()
         if self.pool is not None:
             self.pool.shutdown(wait=True, cancel_futures=False)
         if self.celery is not None:
