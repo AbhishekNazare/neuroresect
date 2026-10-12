@@ -38,6 +38,8 @@ python3.14 -m venv .venv
 npm ci
 ```
 
+For an existing checkout with a saved database, follow the [database migration guide](docs/DATABASE_MIGRATIONS.md) before starting the updated API. Fresh databases initialize automatically.
+
 Start the API:
 
 ```sh

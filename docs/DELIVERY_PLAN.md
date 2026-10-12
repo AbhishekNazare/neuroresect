@@ -41,7 +41,7 @@ The original prototype phases are merged. The remaining programme is incremental
 | 10 | `feat/research-model-registry` | Versioned compatible real model serving with calibrated evaluation and explanations | Pending real experiments |
 | 11 | `feat/anatomical-scenarios` | Physical mask edits, constraints and sensitivity verified against anatomy | Pending aligned imaging |
 | 12 | `feat/patient-anatomy-workspace` | Complete real-data workflow and inspectable intermediate results | Saved real-cohort results, comparisons and aggregate export available; patient anatomy/model contracts remain pending |
-| 13 | `feat/lab-deployment` | Identity, migrations, durable recovery, object storage and backup/restore | Verified SQLite snapshots and restore drills implemented; identity, migrations, durable queue recovery, PostgreSQL backups and object storage pending |
+| 13 | `feat/lab-deployment` | Identity, migrations, durable recovery, object storage and backup/restore | Verified SQLite snapshots, restore drills and versioned SQLite/PostgreSQL schema upgrades implemented; identity, durable queue recovery, PostgreSQL backups and object storage pending |
 | 14 | `feat/multimodal-research` | Actual matched modalities and evaluated fusion, not placeholders | Requires suitable source data |
 | 15 | `feat/research-release-validation` | Requirements traceability, reproducible real results and documented independent validation status | Pending prior gates |
 
