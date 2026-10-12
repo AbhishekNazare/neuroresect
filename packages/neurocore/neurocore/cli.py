@@ -91,6 +91,12 @@ def parser() -> argparse.ArgumentParser:
     )
     real.add_argument("config")
     real.add_argument("--output", required=True)
+    report = commands.add_parser(
+        "ideas-report", help="Export verified aggregate results for the workstation"
+    )
+    report.add_argument("results")
+    report.add_argument("--cohort", required=True)
+    report.add_argument("--output", required=True)
     return root
 
 
@@ -98,7 +104,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     result: Any
     try:
-        if args.command == "ideas-experiment":
+        if args.command == "ideas-report":
+            from neurocore.study_reports import export_real_study
+
+            result = export_real_study(args.results, args.cohort, args.output)
+            print(json.dumps({"id": result["id"], "output": args.output}))
+            return 0
+        elif args.command == "ideas-experiment":
             from neurocore.real_experiments import run_real_experiment
 
             result = run_real_experiment(args.config, args.output)

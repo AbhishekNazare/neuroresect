@@ -329,3 +329,31 @@ def test_experiment_and_prediction_roundtrip(client):
     assert job["result"]["provenance"]["scenario_id"] == scenario["id"]
     assert job["result"]["interval"]["iterations"] == 64
     assert len(client.get(f"{PREFIX}/models").json()) == 2
+
+
+def test_saved_real_study_is_aggregate_and_exportable(client):
+    catalog = client.get(f"{PREFIX}/research-studies").json()
+    assert len(catalog) == 1
+    study_id = catalog[0]["id"]
+    response = client.get(f"{PREFIX}/research-studies/{study_id}")
+    assert response.status_code == 200
+    report = response.json()
+    assert report["synthetic"] is False
+    assert report["cohort"]["eligible_patients"] == 182
+    assert report["models"]["A"]["metrics"]["roc_auc"] < 0.5
+    forbidden = {"patient_id", "subject_id", "predictions", "archive_path", "coefficients"}
+
+    def inspect(value):
+        if isinstance(value, dict):
+            assert not forbidden.intersection(value)
+            for child in value.values():
+                inspect(child)
+        elif isinstance(value, list):
+            for child in value:
+                inspect(child)
+
+    inspect(report)
+    exported = client.get(f"{PREFIX}/research-studies/{study_id}/export")
+    assert exported.json() == report
+    assert "attachment" in exported.headers["content-disposition"]
+    assert client.get(f"{PREFIX}/research-studies/unknown").status_code == 404

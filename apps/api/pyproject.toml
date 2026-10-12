@@ -20,3 +20,6 @@ worker = ["celery[redis]>=5.4,<6", "psycopg[binary]>=3.2,<4"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["neuroresect_api*"]
+
+[tool.setuptools.package-data]
+neuroresect_api = ["reports/*.json"]
