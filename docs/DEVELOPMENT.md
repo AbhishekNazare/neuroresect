@@ -44,7 +44,7 @@ Existing databases now require explicit schema adoption/upgrade before API start
 
 ## Backup and recovery
 
-The [SQLite recovery guide](BACKUP_RECOVERY.md) covers verified live snapshots, restore to a new path, interrupted jobs, and an API recovery drill. Source datasets and training artifacts require separate backup. PostgreSQL/Redis recovery remains a deployment gate.
+The [SQLite recovery guide](BACKUP_RECOVERY.md) covers verified live snapshots, restore to a new path, interrupted jobs, and an API recovery drill. Source datasets and training artifacts require separate backup. [PostgreSQL Compose recovery](POSTGRES_RECOVERY.md) provides verified logical snapshots and an automated full restore drill. Redis queues are excluded; recovered unfinished jobs require resubmission.
 
 ## Validation
 

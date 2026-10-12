@@ -67,6 +67,7 @@ jobs:
       - run: docker compose up -d --wait
       - run: python scripts/smoke_api.py
       - run: python scripts/smoke_recovery.py
+      - run: python scripts/smoke_postgres_backup.py
       - run: docker compose logs --tail=100
         if: failure()
       - run: docker compose down
