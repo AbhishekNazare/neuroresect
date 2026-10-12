@@ -5,7 +5,44 @@ import { api, numeric, poll, post, title } from "@/lib/api";
 import type { Experiment, Job } from "@/lib/types";
 import { ExperimentCharts } from "./ExperimentCharts";
 import { Empty, ProvenanceDetails, Spinner } from "../workspace/primitives";
+import { RealStudyResults } from "./RealStudyResults";
+
 export function Experiments({ atlasId }: { atlasId: string }) {
+  const [source, setSource] = useState<"synthetic" | "real">("synthetic");
+  return (
+    <>
+      <div
+        className="study-source-switch"
+        role="group"
+        aria-label="Experiment source"
+      >
+        <button
+          type="button"
+          className="secondary-button"
+          aria-pressed={source === "synthetic"}
+          onClick={() => setSource("synthetic")}
+        >
+          Synthetic experiment lab
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          aria-pressed={source === "real"}
+          onClick={() => setSource("real")}
+        >
+          IDEAS II results
+        </button>
+      </div>
+      {source === "real" ? (
+        <RealStudyResults />
+      ) : (
+        <SyntheticExperiments atlasId={atlasId} />
+      )}
+    </>
+  );
+}
+
+function SyntheticExperiments({ atlasId }: { atlasId: string }) {
   const [name, setName] = useState("Network disruption · A/B/C study"),
     [model, setModel] = useState("logistic"),
     [seed, setSeed] = useState(42),

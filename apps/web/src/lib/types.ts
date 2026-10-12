@@ -137,3 +137,50 @@ export type Job<T> = {
   error: { message?: string } | string | null;
 };
 export type Tab = "workspace" | "scenarios" | "experiments" | "pipeline";
+
+export type RealStudy = {
+  id: string;
+  name: string;
+  synthetic: false;
+  report_kind: string;
+  dataset_id: string;
+  endpoint: { definition: string; reference: string };
+  cohort: {
+    network_subjects: number;
+    surgical_patients: number;
+    healthy_controls: number;
+    eligible_patients: number;
+    class_counts: Record<string, number>;
+    surgical_exclusions: Record<string, number>;
+  };
+  methods: {
+    atlas: string;
+    measure: string;
+    tractography: string;
+    folds: number;
+    seed: number;
+    estimator: string;
+    threshold: number;
+    preprocessing: string;
+    resection_input_unit: string;
+  };
+  models: Record<
+    string,
+    Pick<
+      ExperimentModel,
+      | "name"
+      | "feature_set"
+      | "metrics"
+      | "roc_curve"
+      | "precision_recall_curve"
+      | "calibration"
+    >
+  >;
+  paired_auc_C_minus_A: {
+    estimate: number;
+    conditional_95_percent_interval: number[];
+    method: string;
+  };
+  limitations: string[];
+  provenance: Record<string, unknown>;
+};

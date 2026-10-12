@@ -302,7 +302,11 @@ export function Workstation() {
           <div className="topbar-actions">
             <span className="environment-tag">
               <span />
-              {c && !c.synthetic ? "IMPORTED RESEARCH" : "SYNTHETIC RESEARCH"}
+              {tab === "experiments"
+                ? "RESEARCH EVIDENCE"
+                : c && !c.synthetic
+                  ? "IMPORTED RESEARCH"
+                  : "SYNTHETIC RESEARCH"}
             </span>
             <button
               className="icon-button help-trigger"
@@ -337,7 +341,9 @@ export function Workstation() {
               <p>
                 {tab === "workspace"
                   ? "A virtual resection workspace for brain network research."
-                  : `${state.patient?.label || "Research workspace"} · ${state.atlasId} · Reproducible by design`}
+                  : tab === "experiments"
+                    ? "Compare synthetic experiments and saved real-cohort evidence."
+                    : `${state.patient?.label || "Research workspace"} · ${state.atlasId} · Reproducible by design`}
               </p>
             </div>
             {state.scenario ? (
@@ -364,11 +370,15 @@ export function Workstation() {
             <FlaskConical size={14} />
             <span>
               <strong>
-                {c && !c.synthetic
-                  ? "Imported research connectome."
-                  : "Synthetic research environment."}
+                {tab === "experiments"
+                  ? "Research experiments and evidence."
+                  : c && !c.synthetic
+                    ? "Imported research connectome."
+                    : "Synthetic research environment."}
               </strong>{" "}
-              Illustrative surface geometry. No clinical interpretation.
+              {tab === "experiments"
+                ? "Each study identifies its data source. No clinical interpretation."
+                : "Illustrative surface geometry. No clinical interpretation."}
             </span>
             <span className="banner-tag">TRANSPARENT BY DESIGN</span>
           </div>
