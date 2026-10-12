@@ -59,8 +59,24 @@ def inspect_database(connection: sqlite3.Connection) -> dict:
         raise ValueError("SQLite foreign-key check failed")
     schema = normalize_schema(connection.execute(SCHEMA_SQL).fetchall())
     engine = create_engine("sqlite:///:memory:")
+    revision = None
+    if connection.execute("SELECT name FROM sqlite_master WHERE name='alembic_version'").fetchone():
+        versions = connection.execute("SELECT version_num FROM alembic_version").fetchall()
+        if len(versions) != 1:
+            raise ValueError("Backup requires exactly one schema revision")
+        revision = versions[0][0]
     try:
-        Base.metadata.create_all(engine)
+        if revision is None:
+            from .baseline_schema import Base as Baseline
+
+            Baseline.metadata.create_all(engine)
+        else:
+            from alembic import command
+
+            from .migrations import _lock, configuration
+
+            with _lock, engine.begin() as expected_connection:
+                command.upgrade(configuration(expected_connection), revision)
         with engine.connect() as expected:
             supported = normalize_schema(expected.exec_driver_sql(SCHEMA_SQL).fetchall())
     finally:
@@ -70,6 +86,7 @@ def inspect_database(connection: sqlite3.Connection) -> dict:
             "Database schema differs from this application; use the matching application revision"
         )
     return {
+        **({"schema_revision": revision} if revision is not None else {}),
         "schema_sha256": hashlib.sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest(),
         "row_counts": {
             name: connection.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0]

@@ -11,6 +11,7 @@ dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.34,<1",
   "sqlalchemy>=2.0,<3",
+  "alembic>=1.20,<2",
   "pydantic>=2.10,<3",
 ]
 
@@ -22,4 +23,4 @@ where = ["."]
 include = ["neuroresect_api*"]
 
 [tool.setuptools.package-data]
-neuroresect_api = ["reports/*.json"]
+neuroresect_api = ["reports/*.json", "migration_scripts/*.py", "migration_scripts/versions/*.py"]

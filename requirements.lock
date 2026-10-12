@@ -65,3 +65,8 @@ websockets==17.2
 # IDEAS source spreadsheet reader
 openpyxl==3.1.5
 et-xmlfile==2.0.0
+
+# Versioned relational schema
+alembic==1.20.0
+Mako==1.4.3
+MarkupSafe==3.0.4
