@@ -82,7 +82,9 @@ class Database:
         self.sessions = sessionmaker(self.engine, expire_on_commit=False)
 
     def initialize(self) -> None:
-        Base.metadata.create_all(self.engine)
+        from .migrations import initialize
+
+        initialize(self.engine)
 
     def close(self) -> None:
         self.engine.dispose()

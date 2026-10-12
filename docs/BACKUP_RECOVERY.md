@@ -1,6 +1,6 @@
 # Local research backup and recovery
 
-The SQLite recovery toolkit preserves application records: imported connectomes, scenarios, saved results, experiments, jobs and idempotency keys. It snapshots committed database state, verifies the snapshot and restores to a **new** file. This is the local SQLite part of the deployment programme; PostgreSQL/Redis recovery, authentication, schema migrations and external artifact storage remain separate work.
+The SQLite recovery toolkit preserves application records: imported connectomes, scenarios, saved results, experiments, jobs and idempotency keys. It snapshots committed database state, verifies the snapshot and restores to a **new** file. This is the local SQLite part of the deployment programme; PostgreSQL/Redis recovery, authentication and external artifact storage remain separate work. Schema upgrades follow the [migration guide](DATABASE_MIGRATIONS.md).
 
 ```mermaid
 flowchart LR
@@ -43,6 +43,8 @@ DATABASE_URL=sqlite:///./data/recovery/research-restored.db \
 ```
 
 The destination must not exist, including a symlink or leftover SQLite WAL/journal files. There is no overwrite option. Restore verifies the bundle, copies to a private staging file, verifies those copied bytes, checks the restored database and publishes it atomically without replacing existing files. The JSON receipt includes original/restored hashes, record counts and the number of interrupted jobs. The restored hash can differ because unfinished jobs are deliberately updated.
+
+If the restored snapshot predates versioned schemas, run the explicit adoption command in the migration guide against the restored path before starting its API.
 
 Check `http://localhost:8001/health` and the API docs at `/docs`. Compare the saved scenarios, simulation exports, experiments and imported connectomes with the expected study records. Stop this inspection instance before changing the production/local API's `DATABASE_URL` to the recovered path. Keep the original database and bundle until the recovery drill is accepted; switching the environment variable back retains a rollback path. The command never edits the original database or snapshot.
 
