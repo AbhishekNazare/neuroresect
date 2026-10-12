@@ -59,7 +59,7 @@ Open **http://localhost:3000**. API documentation is at **http://localhost:8000/
 3. Move the before/after slider and inspect the metrics.
 4. Choose **Estimate synthetic outcome** to see bootstrap refit variability.
 5. Open **Scenarios** for sensitivity and constrained alternatives.
-6. Open **How it works** for the matrix/provenance, or **Experiments** for A/B/C validation.
+6. Open **How it works** for the matrix/provenance, or **Experiments** for A/B/C validation. Select **IDEAS II results** to inspect the saved real-cohort benchmark, compare metrics and export its aggregate report.
 7. Export the scenario or experiment.
 
 ### Containers
