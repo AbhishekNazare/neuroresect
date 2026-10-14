@@ -77,3 +77,5 @@ Browser tests exercise an actual API and rendered workstation. Screenshot captur
 ## Research data and deployment
 
 Do not commit source patient data, credentials, raw scans, model binaries from private cohorts, or exported patient artifacts. Demo mode is anonymous. Before deploying with real data, add your organization's authentication, access controls, retention policy, transport/storage encryption, audit policy, and dataset agreements. These are deployment work, not claims made by this prototype.
+
+First-case MRI and surface checks: [anatomy audit](ANATOMY_AUDIT.md).
