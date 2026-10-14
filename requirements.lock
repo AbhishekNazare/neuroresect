@@ -87,3 +87,4 @@ urllib3==2.8.0
 cffi==2.1.1
 pycparser==3.11
 charset_normalizer==3.5.2
+nibabel==5.4.2

@@ -1,5 +1,5 @@
 -c requirements.lock
--e ./packages/neurocore[storage]
+-e ./packages/neurocore[storage,anatomy]
 -e ./apps/api[worker]
 pytest>=8,<10
 hypothesis>=6,<7
