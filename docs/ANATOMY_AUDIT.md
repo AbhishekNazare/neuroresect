@@ -54,3 +54,5 @@ The native mask and MRI both have shape 256 × 170 × 256 and matching scanner a
 The binary mask contains 53,663 native voxels, approximately 51,881 mm³. Nearest-neighbour resampling gives 51,494 conformed voxels, a −0.746% volume change; 84.22% of those voxels fall within nonzero parcellation labels. These measurements are quality-control observations, not proof of correct anatomical registration or a tissue-specific resection estimate.
 
 The audit deliberately leaves three gates unresolved: visual alignment review, correspondence between image labels and the 82-region connectome order, and confirmation of the published regional-resection units. The existing UI still uses explicitly synthetic geometry. This acquisition/audit does not enable real-patient prediction or physical resection editing.
+
+The subsequent [regional mapping audit](ANATOMICAL_REGIONS.md) resolves numeric label/name correspondence and records the remaining fraction discrepancies.
