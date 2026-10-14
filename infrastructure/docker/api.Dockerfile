@@ -6,7 +6,7 @@ WORKDIR /app
 COPY requirements.lock /app/requirements.lock
 COPY packages/neurocore /app/packages/neurocore
 COPY apps/api /app/apps/api
-RUN pip install -c /app/requirements.lock /app/packages/neurocore '/app/apps/api[worker]'
+RUN pip install -c /app/requirements.lock '/app/packages/neurocore[storage]' '/app/apps/api[worker]'
 COPY workers /app/workers
 COPY configs /app/configs
 RUN useradd --create-home --uid 10001 researcher && mkdir -p /app/data /app/artifacts && chown -R researcher:researcher /app/data /app/artifacts

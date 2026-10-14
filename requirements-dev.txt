@@ -1,8 +1,9 @@
 -c requirements.lock
--e ./packages/neurocore
+-e ./packages/neurocore[storage]
 -e ./apps/api[worker]
 pytest>=8,<10
 hypothesis>=6,<7
 httpx>=0.28,<1
 ruff>=0.11,<1
 mypy>=1.15,<3
+moto[s3]>=5,<7

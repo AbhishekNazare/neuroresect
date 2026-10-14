@@ -49,6 +49,10 @@ To regenerate the figure:
   --output docs/assets/ideas-year1-results.svg
 ```
 
+## Preserve the experiment files
+
+Use [verified artifact bundles](ARTIFACT_STORAGE.md) to publish, verify and restore the completed run directory through local or S3-compatible storage. This preserves models and patient-level artifacts outside Git without enabling real-patient inference.
+
 ## Remaining research and product work
 
 Confirm source resection units and anatomical registration against imaging; investigate acquisition/protocol confounding and missingness; pre-specify any new feature/model comparisons and use nested validation for tuning. Independent external validation, fitted calibration, registered model serving, actual anatomical surfaces and interactive real-patient scenario integration remain outstanding. Negative baseline findings must not be replaced by selecting whichever split or experiment scores best.
