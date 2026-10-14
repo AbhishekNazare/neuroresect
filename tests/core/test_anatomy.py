@@ -4,12 +4,18 @@ import pytest
 from neurocore.anatomy import audit_volumes, surface_to_scanner
 
 
+def nifti(data, affine):
+    image = nib.Nifti1Image(data, affine)
+    image.header.set_xyzt_units("mm")
+    return image
+
+
 def volumes():
     affine = np.eye(4)
-    native = nib.Nifti1Image(np.ones((8, 8, 8), dtype=np.uint8), affine)
+    native = nifti(np.ones((8, 8, 8), dtype=np.uint8), affine)
     values = np.zeros((8, 8, 8), dtype=np.uint8)
     values[2:4, 2:4, 2:4] = 1
-    mask = nib.Nifti1Image(values, affine)
+    mask = nifti(values, affine)
     return native, mask, native, native
 
 
@@ -25,7 +31,7 @@ def test_same_shape_shifted_mask_is_rejected():
     native, mask, reference, atlas = volumes()
     shifted = np.eye(4)
     shifted[0, 3] = 1
-    mask = nib.Nifti1Image(np.asarray(mask.dataobj), shifted)
+    mask = nifti(np.asarray(mask.dataobj), shifted)
     with pytest.raises(ValueError, match="native MRI grid"):
         audit_volumes(native, mask, reference, atlas)
 
@@ -33,7 +39,7 @@ def test_same_shape_shifted_mask_is_rejected():
 @pytest.mark.parametrize("value", [0, 0.5, np.nan, 2])
 def test_empty_or_invalid_mask_is_rejected(value):
     native, mask, reference, atlas = volumes()
-    mask = nib.Nifti1Image(np.full(mask.shape, value, dtype=float), np.eye(4))
+    mask = nifti(np.full(mask.shape, value, dtype=float), np.eye(4))
     with pytest.raises(ValueError, match="nonempty and binary"):
         audit_volumes(native, mask, reference, atlas)
 
@@ -42,7 +48,7 @@ def test_disjoint_conformed_grid_is_rejected():
     native, mask, reference, atlas = volumes()
     affine = np.eye(4)
     affine[0, 3] = 100
-    reference = nib.Nifti1Image(np.asarray(reference.dataobj), affine)
+    reference = nifti(np.asarray(reference.dataobj), affine)
     with pytest.raises(ValueError, match="field of view"):
         audit_volumes(native, mask, reference, reference)
 
@@ -51,7 +57,7 @@ def test_nearest_neighbour_uses_world_coordinates():
     native, mask, reference, atlas = volumes()
     affine = np.eye(4)
     affine[0, 3] = 1
-    reference = nib.Nifti1Image(np.asarray(reference.dataobj), affine)
+    reference = nifti(np.asarray(reference.dataobj), affine)
     result = audit_volumes(native, mask, reference, reference)
     assert result["conformed_mask_voxels"] == 8
     assert result["mask_to_conformed_voxels"][0][3] == -1
@@ -78,3 +84,10 @@ def test_surface_transform_and_embedded_geometry():
         surface_to_scanner(image, metadata)
     with pytest.raises(ValueError, match="lacks valid"):
         surface_to_scanner(image, {})
+
+
+def test_unspecified_spatial_units_are_rejected():
+    native, mask, reference, atlas = volumes()
+    mask.header.set_xyzt_units("unknown")
+    with pytest.raises(ValueError, match="millimetres"):
+        audit_volumes(native, mask, reference, atlas)

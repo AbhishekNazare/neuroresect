@@ -37,6 +37,8 @@ def same_grid(first, second):
 def audit_volumes(native, mask, reference, atlas):
     for image in (native, mask, reference, atlas):
         check_volume(image)
+        if hasattr(image.header, "get_xyzt_units") and image.header.get_xyzt_units()[0] != "mm":
+            raise ValueError("NIfTI spatial units must explicitly be millimetres")
     if not same_grid(native, mask):
         raise ValueError("Resection mask does not match the native MRI grid")
     if not same_grid(reference, atlas):
